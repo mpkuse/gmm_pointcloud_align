@@ -169,6 +169,12 @@ add_executable( test_objloader
     ${KuseUtils}
     )
 
+add_executable( test_multivariate_gaussian
+    src/test_multivariate_gaussian.cpp
+    ${KuseUtils}
+    ${GaussUtils}
+    )
+
 add_executable( gmm_1d
     src/gmm_1d.cpp
     src/GMMFit.cpp
@@ -176,6 +182,12 @@ add_executable( gmm_1d
     ${GaussUtils}
     )
 
+add_executable( gmm_2d
+    src/gmm_2d.cpp
+    src/GMMFit.cpp
+    ${KuseUtils}
+    ${GaussUtils}
+    )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -197,10 +209,20 @@ target_link_libraries( test_objloader
    ${OpenCV_LIBS}
  )
 
+ target_link_libraries( test_multivariate_gaussian
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+  )
+
  target_link_libraries( gmm_1d
     ${catkin_LIBRARIES}
     ${OpenCV_LIBS}
   )
+
+  target_link_libraries( gmm_2d
+     ${catkin_LIBRARIES}
+     ${OpenCV_LIBS}
+   )
 
 #############
 ## Install ##

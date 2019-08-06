@@ -31,6 +31,8 @@ public:
     VectorXd gaussian_mixtures_1d( vector<int> n, vector<double> mu, vector<double> sigma );
 
 
+    // Multivariate random numbers gaussian distributed
+    MatrixXd gaussian_multivariate_randoms( const int n, const VectorXd mu, const MatrixXd sigma );
 private:
     std::mt19937 * generator;
 
