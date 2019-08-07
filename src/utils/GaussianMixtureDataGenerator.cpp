@@ -68,3 +68,88 @@ VectorXd GaussianMixtureDataGenerator::gaussian_mixtures_1d
 
     return out;
 }
+
+
+//------------------------Multivariate ------------------------------------//
+
+MatrixXd GaussianMixtureDataGenerator::gaussian_multivariate_randoms(
+    const int n, const VectorXd mu, const MatrixXd sigma )
+{
+    int d = mu.rows();
+    //
+    // Assert
+    assert( n > 0 );
+    assert( d>0 && mu.rows() == d );
+    assert( sigma.rows() == sigma.cols() && sigma.rows() == d );
+
+    assert( GaussianFunction::isValidCovarianceMatrix(sigma) );
+    MatrixXd out = MatrixXd::Zero( d,n );
+
+
+    //
+    // Generate n dimensional normally distributed
+    for( int i=0 ; i<d ; i++ )
+    {
+        out.row(i) = gaussian_randoms( n, 0.0, 1.0 );
+    }
+
+
+    //
+    // Shape the covariance as desired
+    //  -- Eigen values and Eigen values
+    //  -- construct transform
+    //  -- do the transform on out
+    EigenSolver<MatrixXd> es(sigma, true);
+    VectorXcd eigs = es.eigenvalues();
+    MatrixXcd eig_vec = es.eigenvectors();
+    // cout << "eigs: " << eigs << endl;
+    // cout << "eig_vec: " << eig_vec << endl;
+    // cout << "eigs.real().cwiseSqrt(): " << eigs.real().cwiseSqrt() << endl;
+    MatrixXd T = eig_vec.real() * eigs.real().cwiseSqrt().asDiagonal() ;  // dxd matrix
+    // cout << "T:" << T << endl;
+
+
+    return  ( T * out ).colwise() + mu;
+
+
+}
+
+
+MatrixXd GaussianMixtureDataGenerator::gaussian_mixtures_multivariate(
+    const vector<int> n, vector<VectorXd> mu, vector<MatrixXd> sigma )
+{
+    //
+    // Verify if inputs are ok.
+    int L = n.size(); //number of gaussians
+    assert( L > 0 && mu.size() == L && sigma.size() == L );
+
+    int D = mu[0].rows(); //dimension of the gaussians
+    assert( D> 1 );
+    int n_total_pts = 0 ;
+    for( int i=0 ; i<L ; i++ ) {
+        assert( n[i] > 0 );
+        n_total_pts += n[i];
+        assert( mu[i].rows() == D );
+        assert( sigma[i].rows() == D && sigma[i].cols() == D );
+        assert( GaussianFunction::isValidCovarianceMatrix( sigma[i]) );
+    }
+
+
+    //
+    // Generate each of the gaussians
+    MatrixXd out = MatrixXd::Zero( D, n_total_pts );
+    int s = 0;
+    for( int l=0 ; l<L ; l++ )
+    {
+        MatrixXd _tmp = gaussian_multivariate_randoms( n[l], mu[l], sigma[l] );
+        assert( _tmp.rows() == D && _tmp.cols() == n[l] );
+
+        out.block( 0, s,  D, n[l] ) = _tmp;
+        s += n[l];
+
+    }
+
+
+    return out;
+
+}

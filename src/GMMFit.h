@@ -24,4 +24,12 @@ public:
     ///     @param mu[input,output] : Initial guess of mu
     ///     @param sigma[input,output] : Initial guess of sigma
     static bool fit_1d( const VectorXd& in_vec, const int K, vector<double>& mu, vector<double>& sigma );
+
+
+
+
+    /// Fit a GMM Model with EM Algorithm
+    ///     @param in_vec : 3xN. N data points each of 3 (say) dimensions
+    //      @param
+    // static bool fit_multivariate( const MatrixXd& in_vec )
 };

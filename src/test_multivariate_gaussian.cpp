@@ -19,6 +19,7 @@ using namespace Eigen;
 #include "utils/GaussianFunction.h"
 #include "GMMFit.h"
 
+
 int main()
 {
     //---- verify isValidCovarianceMatrix

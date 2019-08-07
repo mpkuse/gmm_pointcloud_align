@@ -40,4 +40,17 @@ public:
     /// Test for validity of covariance matrix. A valid covariance matrix is a symmetric
     /// matrix and all positive singular values. This can be tested with determinary being positive.
     static bool isValidCovarianceMatrix( const MatrixXd& A );
+
+
+    /// sample mean
+    /// @param x will be 3xn, 3dimensional (say) and n datapoints.
+    /// @param returns 3 vector
+    static VectorXd sample_mean( const MatrixXd& x );
+    static double sample_mean( const VectorXd& x );
+
+    /// sample covariance matrix
+    /// @param x will be 3xn, 3dimensional (say) and n datapoints.
+    /// @param returns 3x3 matrix
+    static MatrixXd sample_covariance_matrix( const MatrixXd& x );
+    static double sample_variance( const VectorXd& x ); //< please note, this is sigma^2. 
 };

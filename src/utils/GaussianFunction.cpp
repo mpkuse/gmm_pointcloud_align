@@ -180,3 +180,40 @@ bool GaussianFunction::isValidCovarianceMatrix( const MatrixXd& A )
 
 
 }
+
+
+
+
+VectorXd GaussianFunction::sample_mean( const MatrixXd& x )
+{
+    int d = x.rows();  //data dimensions
+    int n = x.cols() ; //number of samples.
+    assert( d>0 && n > 0 );
+    return x.rowwise().mean();
+}
+
+
+double GaussianFunction::sample_mean( const VectorXd& x )
+{
+    assert( x.rows() > 0 );
+    return x.mean();
+}
+
+
+MatrixXd GaussianFunction::sample_covariance_matrix( const MatrixXd& x )
+{
+    int d = x.rows();  //data dimensions
+    int n = x.cols() ; //number of samples.
+    VectorXd sample_mu = sample_mean( x );
+    assert( sample_mu.rows() == d );
+    return 1.0 / double(n-1) * (x.colwise() - sample_mu)  * (x.colwise() - sample_mu).transpose();
+}
+
+double GaussianFunction::sample_variance( const VectorXd& x )
+{
+    double s_mu = sample_mean( x );
+    int n = x.rows();
+    assert( n > 1 && "cannot comute variance with 1 sample");
+    double at_a = x.transpose() * x;
+    return 1.0 / double(n-1) * ( at_a - s_mu*s_mu);
+}

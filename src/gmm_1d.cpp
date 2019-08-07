@@ -40,8 +40,12 @@ int main( int argc, char ** argv)
 
     #if 0
     // Gaussian randoms
-    VectorXd g = gen.gaussian_randoms( 10, 0, 4 );
-    cout << g << endl;
+    VectorXd g_1d = gen.gaussian_randoms( 1000, 16, 4 );
+    cout << g_1d << endl;
+
+    cout << "sample mean: " << GaussianFunction::sample_mean( g_1d ) << endl;
+    cout << "sample var: " << GaussianFunction::sample_variance( g_1d ) << endl;
+    return 0;
     #endif
 
     #if 1
