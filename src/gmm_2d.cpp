@@ -68,7 +68,9 @@ int main( int argc, char ** argv )
     vector<int> nx;
     vector<VectorXd> mu;
     vector<MatrixXd> sigma;
-    for( int l=0 ; l<2 ; l++ ) //number of gaussians
+    int n_pts_in_each_mixture = 500;
+    cout << "GENERATE DATA WITH 2 GAUSSIANS\n";
+    for( int l=0 ; l<5 ; l++ ) //number of gaussians
     {
         MatrixXd r = MatrixXd::Random(2,2);
         MatrixXd _sigma = r + r.transpose();
@@ -81,25 +83,78 @@ int main( int argc, char ** argv )
 
         if( l==1 ) { _mu *= 50. ;  _sigma(1,1) *= 15.;  _sigma(0,1) = 1.1; _sigma(1,0) = 1.1; }
 
-        cout << TermColor::GREEN() << "#" << l << "\tn=" << 100 << "\tmu=" << _mu.transpose() << TermColor::RESET() << endl;
+        if( l==2 ) { _mu(1) *= 50. ;  _sigma(1,1) *= 15.;  }
+
+        if( l==3 ) { _mu(1) *= -10. ;  _sigma(1,1) *= 3.;  }
+
+        if( l==3 ) { _mu(0) *= -1.0  ;  _sigma(1,1) *= 3.; _sigma(0,1) = 1.1; _sigma(1,0) = 1.1;   }
+
+        cout << TermColor::GREEN() << "#" << l << "\tn=" << n_pts_in_each_mixture << "\tmu=" << _mu.transpose() << TermColor::RESET() << endl;
         cout << "sigma:\n" << _sigma << "\n"<< endl;
 
         GaussianFunction::isValidCovarianceMatrix( _sigma );
 
-        nx.push_back( 100 );
+        nx.push_back( n_pts_in_each_mixture );
         sigma.push_back( _sigma );
         mu.push_back( _mu );
     }
 
     GaussianMixtureDataGenerator gen(0);
     MatrixXd res = gen.gaussian_mixtures_multivariate( nx, mu, sigma );
-    cout << "res_" << res.rows() << "x" << res.cols() << endl;
+    cout << "Generated random data: res_" << res.rows() << "x" << res.cols() << endl;
     #endif
 
 
 
+    vector<visualization_msgs::Marker> __viz__;
+    #if 1
+    //
+    // Do GMM Fit
 
-    // Do GMM Fit 
+    // initial guesses
+    vector<VectorXd> init_mu;
+    // init_mu.push_back( VectorXd::Zero(2) );
+    // init_mu.push_back( 10.0*VectorXd::Ones(2) );
+
+    vector<MatrixXd> init_sigma;
+    // init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
+    // init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
+
+    for(int i=0 ; i<5 ; i++ ) {
+        init_mu.push_back( VectorXd::Random(2)*10*i );
+        init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
+    }
+
+    // marker initial
+    {
+        for( int i=0 ; i<init_mu.size() ; i++ ) {
+            visualization_msgs::Marker marker__gauss;
+            RosMarkerUtils::init_mu_sigma_marker( marker__gauss, init_mu[i], init_sigma[i] );
+            RosMarkerUtils::setcolor_to_marker( 0.0, 1.0, 0.0, 1.0, marker__gauss );
+            marker__gauss.id = i;
+            marker__gauss.ns = "init";
+            __viz__.push_back( marker__gauss );
+        }
+    }
+
+
+    // Fitting
+    GMMFit::fit_multivariate( res, 5, init_mu, init_sigma );
+
+
+
+    // marker after optimization
+    {
+        for( int i=0 ; i<init_mu.size() ; i++ ) {
+            visualization_msgs::Marker marker__gauss;
+            RosMarkerUtils::init_mu_sigma_marker( marker__gauss, init_mu[i], init_sigma[i] );
+            RosMarkerUtils::setcolor_to_marker( 0.0, 1.0, 1.0, 1.0, marker__gauss );
+            marker__gauss.id = i;
+            marker__gauss.ns = "after";
+            __viz__.push_back( marker__gauss );
+        }
+    }
+    #endif
 
 
 
@@ -115,11 +170,17 @@ int main( int argc, char ** argv )
     }
 
 
+
+
+
     ros::Rate rate(10);
     while( ros::ok() )
     {
         rate.sleep();
         marker_pub.publish( marker  );
+
+        for( int i=0 ; i<__viz__.size() ; i++ )
+            marker_pub.publish( __viz__[i]  );
     }
     return 0;
 

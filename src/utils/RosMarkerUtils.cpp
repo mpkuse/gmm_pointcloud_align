@@ -178,6 +178,115 @@ void RosMarkerUtils::init_mesh_marker( visualization_msgs::Marker &marker )
 
 }
 
+
+void RosMarkerUtils::init_mu_sigma_marker( visualization_msgs::Marker& marker,
+    const VectorXd& mu, const MatrixXd& sigma, float linewidth_multiplier)
+{
+    int d = mu.rows();
+    assert( d > 0 && linewidth_multiplier > 0. );
+    if( ( d == 2 || d == 3) == false ) {
+        cout << "[RosMarkerUtils::init_mu_sigma_marker] ERROR dimension can only be either 2 or 3\n";
+        exit(1);
+    }
+
+    if( (sigma.rows() == d && sigma.cols() == d) == false )
+    {
+        cout << "[[RosMarkerUtils::init_mu_sigma_marker] ERROR dimensions of sigma and mu are not same\n";
+        exit(1);
+    }
+
+    RosMarkerUtils::init_line_marker( marker );
+    // axis.id = id;
+    // axis.ns = ns.c_str();
+    marker.scale.x = 0.2*linewidth_multiplier; // (scale<0)?1.0:scale;
+
+    if( d == 2 ) {
+    cout << "[RosMarkerUtils::init_mu_sigma_marker]\n";
+    cout << "input mu = " << mu << endl;
+    cout << "input sigma = " << sigma << endl;
+
+    // Eigen decomposition of sigma
+    EigenSolver<Matrix2d> es(sigma, true);
+    Vector2cd eigvals_org = es.eigenvalues();
+    Matrix2cd eigvecs_org = es.eigenvectors();
+
+    Vector2d eigvals = eigvals_org.real();
+    Matrix2d eigvecs = eigvecs_org.real();
+
+    // VectorXd
+    cout << "eigvals=\n" << eigvals.real() << endl;
+    cout << "eigvecs=\n" << eigvecs.real() << endl;
+
+
+    Vector3d e0, e1, mu3d;
+    e0 << eigvecs.col(0) , 0.0;
+    e1 << eigvecs.col(1) , 0.0;
+    mu3d << mu, 0.0;
+
+
+    // // Add pts
+    RosMarkerUtils::add_point_to_marker( mu3d , marker, true );
+    RosMarkerUtils::add_point_to_marker( Vector3d(mu3d + sqrt(eigvals(0)) * e0), marker, false );
+
+    RosMarkerUtils::add_point_to_marker( mu3d , marker, false );
+    RosMarkerUtils::add_point_to_marker( Vector3d(mu3d + sqrt(eigvals(1)) * e1), marker, false );
+
+
+    cout << "END [RosMarkerUtils::init_mu_sigma_marker]\n";
+    return;
+
+    }
+
+    if( d == 3 ) {
+
+        #if 1
+        cout << "[RosMarkerUtils::init_mu_sigma_marker]\n";
+        cout << "Implemented but not tested. please test this before removing this exit(1).\n";
+        exit(1);
+        cout << "input mu = " << mu << endl;
+        cout << "input sigma = " << sigma << endl;
+
+        // Eigen decomposition of sigma
+        EigenSolver<Matrix3d> es(sigma, true);
+        Vector3cd eigvals_org = es.eigenvalues();
+        Matrix3cd eigvecs_org = es.eigenvectors();
+
+        Vector3d eigvals = eigvals_org.real();
+        Matrix3d eigvecs = eigvecs_org.real();
+
+        // VectorXd
+        cout << "eigvals=\n" << eigvals.real() << endl;
+        cout << "eigvecs=\n" << eigvecs.real() << endl;
+
+
+        Vector3d e0, e1, e2, mu3d;
+        e0 << eigvecs.col(0);
+        e1 << eigvecs.col(1);
+        e2 << eigvecs.col(2);
+        mu3d << mu ;
+
+
+        // // Add pts
+        RosMarkerUtils::add_point_to_marker( mu3d , marker, true );
+        RosMarkerUtils::add_point_to_marker( Vector3d(mu3d + eigvals(0) * e0), marker, false );
+
+        RosMarkerUtils::add_point_to_marker( mu3d , marker, false );
+        RosMarkerUtils::add_point_to_marker( Vector3d(mu3d + eigvals(1) * e1), marker, false );
+
+        RosMarkerUtils::add_point_to_marker( mu3d , marker, false );
+        RosMarkerUtils::add_point_to_marker( Vector3d(mu3d + eigvals(2) * e2), marker, false );
+
+        cout << "END [RosMarkerUtils::init_mu_sigma_marker]\n";
+        return;
+        #endif
+
+    }
+
+    cout << "d was something bizzare...\n";
+    exit(2);
+
+}
+
 void RosMarkerUtils::setpose_to_marker( const Matrix4d& w_T_c, visualization_msgs::Marker& marker )
 {
     Quaterniond quat( w_T_c.topLeftCorner<3,3>() );

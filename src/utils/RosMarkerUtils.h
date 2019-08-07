@@ -42,6 +42,9 @@ public:
         float width, float height,
         float clr_r=1.0, float clr_g=1.0, float clr_b=1.0, float clr_a=0.6 ); //!< built as TRIANGLE_LIST. have 2 triangles, you can set the pose to get to whatever position it is needed
 
+    // a line strip to visualize mu and sigma in either 2d or 3d.
+    static void init_mu_sigma_marker( visualization_msgs::Marker& marker, const VectorXd& mu, const MatrixXd& sigma, float linewidth_multiplier=1.0 );
+
     static void init_text_marker( visualization_msgs::Marker &marker );
     static void init_line_strip_marker( visualization_msgs::Marker &marker );
     static void init_line_marker( visualization_msgs::Marker &marker );
