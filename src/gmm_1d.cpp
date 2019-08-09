@@ -51,8 +51,8 @@ int main( int argc, char ** argv)
     #if 1
     // Mix of Gaussians randoms
     vector<int> n = {200,600};
-    vector<double> mu = {5.1, 12.5};
-    vector<double> sigma = {8.0, 8.0};
+    vector<double> mu = {-5.1, 12.5};
+    vector<double> sigma = {8.0, 3.0};
     VectorXd g = gen.gaussian_mixtures_1d( n, mu, sigma );
     cout << "g:" << g.transpose() << endl;
     #endif

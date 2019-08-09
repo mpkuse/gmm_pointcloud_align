@@ -4,7 +4,11 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Reference1
+        - /Reference1/Axes1
+        - /Reference1/Grid1
         - /Marker1
+        - /Marker1/Status1
         - /Marker1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 745
@@ -34,7 +38,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Axes
           Enabled: true
-          Length: 1
+          Length: 10
           Name: Axes
           Radius: 0.0299999993
           Reference Frame: <Fixed Frame>
@@ -54,7 +58,7 @@ Visualization Manager:
             Y: 0
             Z: 0
           Plane: XY
-          Plane Cell Count: 20
+          Plane Cell Count: 10
           Reference Frame: <Fixed Frame>
           Value: true
       Enabled: true
@@ -90,20 +94,25 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0
-      Class: rviz/TopDownOrtho
+      Class: rviz/XYOrbit
+      Distance: 3.04449987
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
+      Focal Point:
+        X: -2.53234553
+        Y: 2.27467823
+        Z: -4.76837158e-07
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.0500000007
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 200.684128
+      Pitch: 0.485317081
       Target Frame: <Fixed Frame>
-      Value: TopDownOrtho (rviz)
-      X: 0.665095031
-      Y: 0.685122132
+      Value: XYOrbit (rviz)
+      Yaw: 2.76620102
     Saved:
       - Class: rviz/Orbit
         Distance: 49.6446877

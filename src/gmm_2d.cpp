@@ -68,10 +68,10 @@ int main( int argc, char ** argv )
     vector<int> nx;
     vector<VectorXd> mu;
     vector<MatrixXd> sigma;
-    int n_pts_in_each_mixture = 500;
     cout << "GENERATE DATA WITH 2 GAUSSIANS\n";
-    for( int l=0 ; l<5 ; l++ ) //number of gaussians
+    for( int l=0 ; l<4 ; l++ ) //number of gaussians
     {
+        int n_pts_in_each_mixture = 300 + 100*l;
         MatrixXd r = MatrixXd::Random(2,2);
         MatrixXd _sigma = r + r.transpose();
         _sigma(0,0) = abs( _sigma(0,0) );
@@ -80,14 +80,15 @@ int main( int argc, char ** argv )
 
         VectorXd _mu = VectorXd::Random(2)  ;
 
+        if( l==0 ) { _mu(0) = 20.; }
 
-        if( l==1 ) { _mu *= 50. ;  _sigma(1,1) *= 15.;  _sigma(0,1) = 1.1; _sigma(1,0) = 1.1; }
+        if( l==1 ) { _mu(0)= -10. ; _mu(1)= -30. ;  _sigma(1,1) *= 15.;  _sigma(0,1) = 1.1; _sigma(1,0) = 1.1; }
 
         if( l==2 ) { _mu(1) *= 50. ;  _sigma(1,1) *= 15.;  }
 
-        if( l==3 ) { _mu(1) *= -10. ;  _sigma(1,1) *= 3.;  }
+        if( l==3 ) { _mu(0) *= 30. ;  _sigma(1,1) *= 3.;  }
 
-        if( l==3 ) { _mu(0) *= -1.0  ;  _sigma(1,1) *= 3.; _sigma(0,1) = 1.1; _sigma(1,0) = 1.1;   }
+        // if( l==4 ) { _mu(0) = -8.0 ; _mu(1) = +8.0  ;  _sigma(1,1) *= 3.; _sigma(0,1) = 1.1; _sigma(1,0) = 1.1;   }
 
         cout << TermColor::GREEN() << "#" << l << "\tn=" << n_pts_in_each_mixture << "\tmu=" << _mu.transpose() << TermColor::RESET() << endl;
         cout << "sigma:\n" << _sigma << "\n"<< endl;
@@ -120,9 +121,9 @@ int main( int argc, char ** argv )
     // init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
     // init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
 
-    for(int i=0 ; i<5 ; i++ ) {
-        init_mu.push_back( VectorXd::Random(2)*10*i );
-        init_sigma.push_back( 100. * MatrixXd::Identity(2,2) );
+    for(int i=0 ; i<4 ; i++ ) {
+        init_mu.push_back( VectorXd::Random(2)*25 );
+        init_sigma.push_back( 225. * MatrixXd::Identity(2,2) );
     }
 
     // marker initial
@@ -139,7 +140,8 @@ int main( int argc, char ** argv )
 
 
     // Fitting
-    GMMFit::fit_multivariate( res, 5, init_mu, init_sigma );
+    VectorXd priors;
+    GMMFit::fit_multivariate( res, 4, init_mu, init_sigma, priors );
 
 
 

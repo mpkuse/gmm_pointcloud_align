@@ -11,6 +11,6 @@ int main()
 
     auto w_X = obj.getVertices();
     cout << "vertices dims: " << w_X.rows() << "x" << w_X.cols() << endl;
-    cout << w_X.leftCols(10) << endl; 
+    cout << w_X.leftCols(10) << endl;
     return 0;
 }

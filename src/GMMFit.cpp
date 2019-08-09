@@ -88,7 +88,7 @@ bool GMMFit::fit_1d( const VectorXd& in_vec, const int K, vector<double>& mu, ve
 
 
 bool GMMFit::fit_multivariate( const MatrixXd& in_vec, const int K,
-                vector<VectorXd>& mu, vector<MatrixXd>& sigma )
+                vector<VectorXd>& mu, vector<MatrixXd>& sigma, VectorXd& priors )
 {
     //
     // Are the Inputs sane?
@@ -128,7 +128,8 @@ bool GMMFit::fit_multivariate( const MatrixXd& in_vec, const int K,
     // ===== Processing Starts =====
     //
     // init Priors for each class
-    VectorXd priors = VectorXd::Zero( K );
+    // VectorXd priors = VectorXd::Zero( K );
+    priors = VectorXd::Zero( K );
     for( int k=0 ; k<K ; k++) priors(k) = 1.0/double(K);
     cout << "initial priors: " << priors.transpose() << endl;
 

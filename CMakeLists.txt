@@ -189,6 +189,14 @@ add_executable( gmm_2d
     ${GaussUtils}
     )
 
+
+add_executable( gmm_realobj
+    src/gmm_realobj.cpp
+    ${KuseUtils}
+    ${GaussUtils}
+    src/GMMFit.cpp
+    )
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -224,6 +232,10 @@ target_link_libraries( test_objloader
      ${OpenCV_LIBS}
    )
 
+   target_link_libraries( gmm_realobj
+      ${catkin_LIBRARIES}
+      ${OpenCV_LIBS}
+    )
 #############
 ## Install ##
 #############

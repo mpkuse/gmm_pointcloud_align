@@ -242,7 +242,7 @@ void RosMarkerUtils::init_mu_sigma_marker( visualization_msgs::Marker& marker,
         #if 1
         cout << "[RosMarkerUtils::init_mu_sigma_marker]\n";
         cout << "Implemented but not tested. please test this before removing this exit(1).\n";
-        exit(1);
+        // exit(1);
         cout << "input mu = " << mu << endl;
         cout << "input sigma = " << sigma << endl;
 
