@@ -19,8 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
   interactive_markers
 )
 
-set(CMAKE_BUILD_TYPE "Debug")
-#set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -DEIGEN_DONT_PARALLELIZE")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
@@ -156,12 +156,32 @@ FILE( GLOB KuseUtils
     src/utils/PoseManipUtils.cpp
     src/utils/RosMarkerUtils.cpp
     src/utils/MeshObject.cpp
+    src/utils/RawFileIO.cpp
+    src/utils/MiscUtils.cpp
+    src/utils/CameraGeometry.cpp
 )
 
 FILE( GLOB GaussUtils
     src/utils/GaussianMixtureDataGenerator.cpp
     src/utils/GaussianFunction.cpp
 )
+
+
+FILE(GLOB CamodocalCameraModelSources
+        src/utils/camodocal/src/chessboard/Chessboard.cc
+        src/utils/camodocal/src/calib/CameraCalibration.cc
+        src/utils/camodocal/src/camera_models/Camera.cc
+        src/utils/camodocal/src/camera_models/CameraFactory.cc
+        src/utils/camodocal/src/camera_models/CostFunctionFactory.cc
+        src/utils/camodocal/src/camera_models/PinholeCamera.cc
+        src/utils/camodocal/src/camera_models/CataCamera.cc
+        src/utils/camodocal/src/camera_models/EquidistantCamera.cc
+        src/utils/camodocal/src/camera_models/ScaramuzzaCamera.cc
+        src/utils/camodocal/src/sparse_graph/Transform.cc
+        src/utils/camodocal/src/gpl/gpl.cc
+        src/utils/camodocal/src/gpl/EigenQuaternionParameterization.cc
+    )
+
 
 
 add_executable( test_objloader
@@ -195,6 +215,13 @@ add_executable( gmm_realobj
     ${KuseUtils}
     ${GaussUtils}
     src/GMMFit.cpp
+    )
+
+add_executable( local_ptcloud
+    src/local_ptcloud.cpp
+    ${CamodocalCameraModelSources}
+    ${KuseUtils}
+    src/SlicClustering.cpp
     )
 
 ## Rename C++ executable without prefix
@@ -236,6 +263,11 @@ target_link_libraries( test_objloader
       ${catkin_LIBRARIES}
       ${OpenCV_LIBS}
     )
+
+    target_link_libraries( local_ptcloud
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
 #############
 ## Install ##
 #############
