@@ -20,6 +20,7 @@ using namespace std;
 using namespace Eigen;
 #include <opencv2/core/eigen.hpp>
 
+#include "utils/TermColor.h"
 
 /* 2d matrices are handled by 2d vectors. */
 #define vec2dd vector<vector<double> >
@@ -38,7 +39,9 @@ using namespace Eigen;
 class PixElement {
 public:
     int u, v; //< spatial position
-    float X, Y, Z; //< 3d position
+
+    // float X, Y, Z; //< 3d position
+    float D; //< Depth
 
     #if COLOR_CHANNEL == 1
     float intensity;
@@ -48,7 +51,11 @@ public:
 
 
     void reset() {
-        u = 0; v=0; X=Y=Z=0 ;
+        u = 0; v=0;
+        // X=Y=Z=0 ;
+        D = 0;
+
+
         #if COLOR_CHANNEL == 1
         intensity = 0;
         #else
@@ -60,7 +67,13 @@ public:
     static float distance( const PixElement& a, const PixElement& b )
     {
         float d_spatial = (a.u - b.u)*(a.u - b.u) + (a.v - b.v)*(a.v - b.v);
-        float d_volume  = (a.X - b.X)*(a.X - b.X) + (a.Y - b.Y)*(a.Y - b.Y) + (a.Z - b.Z)*(a.Z - b.Z);
+        // float d_volume  = (a.X - b.X)*(a.X - b.X) + (a.Y - b.Y)*(a.Y - b.Y) + (a.Z - b.Z)*(a.Z - b.Z);
+
+        float d_volume;
+        if( a.D <= 0 || b.D <= 0 )
+            d_volume = 0;
+        else
+            d_volume = (a.D - b.D) * (a.D - b.D);
 
         #if COLOR_CHANNEL == 1
         float d_color   = (a.intensity - b.intensity) * (a.intensity - b.intensity);
@@ -81,7 +94,8 @@ public:
     static void pretty_print( const PixElement& a )
     {
         cout << "u=" << a.u << ", v=" << a.v << "\t";
-        cout << "X=" << a.X << ", Y=" << a.Y << ", Z=" << a.Z << "\t";
+        // cout << "X=" << a.X << ", Y=" << a.Y << ", Z=" << a.Z << "\t";
+        cout << "D=" << a.D << "\t";
         #if COLOR_CHANNEL == 1
         cout << "intensity=" << a.intensity << endl;
         #else
@@ -102,14 +116,14 @@ public:
     void init_data( const cv::Mat& image, const cv::Mat& depth );
 
     //image, depth image (cv_16uc1) the stepsize (int), and the weight (int).
-    void generate_superpixels(   const cv::Mat& image, const cv::Mat& depth, int step, int nc );
+    void generate_superpixels(   const cv::Mat& image, const cv::Mat& depth, int step );
 
 
     // viz
     void display_center_grid();
     void display_center_grid(cv::Mat& image, cv::Scalar colour);
     void colour_with_cluster_means(cv::Mat& image);
-    void display_contours(cv::Mat& image, cv::Scalar colour);
+    void display_contours(const cv::Mat& image, cv::Scalar colour, cv::Mat& output );
 
     // data extractor
     MatrixXd retrive_superpixel_uv( bool return_homogeneous = false ); // 2xN matrix or 3xN
@@ -125,10 +139,10 @@ private:
     vector<PixElement> centers;
     /* The number of occurences of each center. */
     vector<int> center_counts;
+    vector<int> center_counts_depth;
 
-    /* The step size per cluster, and the colour (nc) and distance (ns)
-     * parameters. */
-    int step, nc, ns;
+    /* The step size per cluster */
+    int step;
 
 
     // TODO : Write functions to set these values
@@ -139,10 +153,10 @@ private:
 
 
     void back_project(
-    const float &u, const float &v, const float &depth, float &x, float &y, float &z)
+    const float im_x, const float im_y, const float depth, float &x, float &y, float &z)
     {
-        x = (u - cx) / fx * depth;
-        y = (v - cy) / fy * depth;
+        x = (im_x - cx) / fx * depth;
+        y = (im_y - cy) / fy * depth;
         z = depth;
     }
 

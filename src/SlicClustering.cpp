@@ -26,6 +26,7 @@ void SlicClustering::clear_data() {
     distances.clear();
     centers.clear();
     center_counts.clear();
+    center_counts_depth.clear();
 }
 
 
@@ -60,27 +61,112 @@ void SlicClustering::init_data( const cv::Mat& image, const cv::Mat& depth )
 
     /* Initialize the centers and counters. */
     int cc = 0;
+    __SlicClustering__init_data__(
+    cout << "for( int j= " << step << " ; j < " << image.rows - step/2 << " ; j+= " << step << " )\n";)
     for (int j = step; j < image.rows - step/2; j += step) {
+        __SlicClustering__init_data__(
+        cout << "\t@j=" << j << "\tfor( int i= " << step << " ; j < " << image.cols - step/2 << " ; j+= " << step << " )\n";)
         for (int i = step; i < image.cols - step/2; i += step) {
-            // vector<double> center;
-            /* Find the local minimum (gradient-wise). */
-            // cv::Point nc = find_local_minimum(image, cvPoint(i,j));
-            // CvScalar colour = cvGet2D(image, nc.y, nc.x);
+            PixElement center; //fill this up
 
-            PixElement center;
+            __SlicClustering__init_data__(
+            cout << TermColor::YELLOW() << "---\n\t\ti=" << i << "  j=" << j << TermColor::RESET() << endl;)
+
+
+            // look at the neighbourhood of pixel (j,i)
+            #if COLOR_CHANNEL == 3
+            float sum_red = 0.0, sum_green = 0.0, sum_blue = 0.0; int sum_intensity_num = 0;
+            #else
+            float sum_intensity=0.0; int sum_intensity_num=0;
+            #endif
+
+            float sum_depth=0.0; int sum_depth_num=0;
+
+            __SlicClustering__init_data__(
+            cout << "\t\tloop on neighbourhood [" << j-step/2 << ", " << j+step/2 << ") X [" << i-step/2 << ", " << i+step/2 << ")\n"; )
+            for( int del_j = -step/2 ; del_j < step/2 ; del_j++ ) {
+                for( int del_i = -step/2 ; del_i < step/2 ; del_i++ ) {
+
+
+                    assert( j+del_j >=0 && j+del_j < image.rows  &&  i+del_i >= 0 && i+del_i < image.cols );
+
+                    #if COLOR_CHANNEL == 3
+                    cv::Scalar colour = image.at<cv::Vec3b>( j+del_j, i+del_i );
+                    sum_red   += (float)colour[0];
+                    sum_green += (float)colour[1];
+                    sum_blue  += (float)colour[2];
+                    #else
+                    uchar colour = image.at<uchar>(  j+del_j, i+del_i  );
+                    sum_intensity += (float) colour;
+                    #endif
+                    sum_intensity_num++;
+
+
+
+                    float depth_val;
+                    if( depth.type() == CV_16UC1 )
+                        depth_val = (float) depth.at<uint16_t>(  j+del_j, i+del_i  );
+                    else if( depth.type() == CV_32FC1 )
+                        depth_val = (float) depth.at<float>(  j+del_j, i+del_i  );
+                    else {
+                        cout << "[init_data]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                        assert( false );
+                        exit(1);
+                    }
+
+                    if( depth_val > 1e-3 && depth_val < 20. ) {
+                        sum_depth+= depth_val;
+                        sum_depth_num++;
+                    }
+
+                }
+            }
+            __SlicClustering__init_data__(
+            cout << "\t\tneighbourhood loop done; sum_intensity_num=" << sum_intensity_num << "\tsum_depth_num=" << sum_depth_num << "\n"; )
+
+
+            // fillup spatial positions
+            center.u = j; //rowIdx
+            center.v = i; //colIdx
+            __SlicClustering__init_data__(
+            cout << TermColor::GREEN() << "\t\tcenter uv := " << center.u << ", " << center.v << TermColor::RESET() << endl; )
+
+            // fillup color/intensity
+            #if COLOR_CHANNEL == 3
+            center.red = sum_red / sum_intensity_num;
+            center.green = sum_green / sum_intensity_num;
+            center.blue = sum_blue / sum_intensity_num;
+            __SlicClustering__init_data__(
+            cout << TermColor::GREEN() << "\t\tcenter rgb := " << center.red  << ", " << center.green << ", " << center.blue << TermColor::RESET() << endl;)
+            #else
+            center.intensity = sum_intensity / sum_intensity_num;
+            __SlicClustering__init_data__(
+            cout << TermColor::GREEN() << "\t\tcenter intensity := " << center.intensity << TermColor::RESET() << endl; )
+            #endif
+
+
+            //fillup depth
+            if( sum_depth_num > 0 ) {
+                center.D = sum_depth / sum_depth_num;
+                __SlicClustering__init_data__(
+                cout << TermColor::GREEN() << "\t\tcenter depth(D) := " << center.D << TermColor::RESET() << endl;)
+            } else {
+                center.D = -1;
+                __SlicClustering__init_data__(
+                cout << TermColor::RED() << "\t\tcenter depth(D) := NAN (-1)" << center.D << TermColor::RESET() << endl; )
+            }
+
+
+            #if 0 // OLD CODE, eventually TODO Removal
             cv::Point nc;// = find_local_minimum(image, cvPoint(i,j)); //TODO
             nc = cv::Point( i, j ); //quick fix, just set it as center and get by
 
             /* Generate the center vector. */
-            // center.push_back(colour[0]);
-            // center.push_back(colour[1]);
-            // center.push_back(colour[2]);
-            // center.push_back(nc.x);
-            // center.push_back(nc.y);
             center.u = j; //rowIdx
             center.v = i; //colIdx
 
             #if 0
+            // old code
             float depth_val = depth.at<uint16_t>( nc.y, nc.x ); //TODO: if Z is zero (aka invalid depth initialize cluster center with someother point. )
             #else
             float depth_val;
@@ -94,9 +180,13 @@ void SlicClustering::init_data( const cv::Mat& image, const cv::Mat& depth )
                 exit(1);
             }
             #endif
-            if( depth_val < 1e-5 )
+
+            if( depth_val < 1e-5 ) {
+                cout << "skip, because this pixel has invalid depth\n";
                 continue;
-            back_project( center.v, center.u,  depth_val,  center.X, center.Y, center.Z );
+            }
+            // back_project( center.v, center.u,  depth_val,  center.X, center.Y, center.Z );
+            center.D = depth_val;
 
             #if COLOR_CHANNEL == 3
             cv::Scalar colour = image.at<cv::Vec3b>( nc.y, nc.x );
@@ -107,7 +197,7 @@ void SlicClustering::init_data( const cv::Mat& image, const cv::Mat& depth )
             uchar colour = image.at<uchar>( nc.y, nc.x );
             center.intensity = (float) colour;
             #endif
-
+            #endif // OLD_CODE
 
 
             /* Append to vector of centers. */
@@ -117,27 +207,31 @@ void SlicClustering::init_data( const cv::Mat& image, const cv::Mat& depth )
             )
             centers.push_back(center);
             center_counts.push_back(0);
+            center_counts_depth.push_back(0);
             cc++;
         }
     }
 }
 
 
-void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat& depth, int step, int nc )
+// #define __SlicClustering__generate_superpixels( msg ) msg;
+#define __SlicClustering__generate_superpixels( msg ) ;
+void SlicClustering::generate_superpixels(
+    const cv::Mat& image, const cv::Mat& depth,
+    int step
+     )
 {
     this->step = step;
-    this->nc = nc;
-    this->ns = step;
 
     /* Clear previous data (if any), and re-initialize it. */
     clear_data();
     init_data(image, depth);
 
-
     /* Run EM for 10 iterations (as prescribed by the algorithm). */
     for (int i = 0; i < NR_ITERATIONS; i++) {
+        __SlicClustering__generate_superpixels(
         cout << ">>>>>>>>>>>>>>>>> EM Iteration#" << i << endl;
-        cout << "\t--Reset distance values.\n";
+        cout << "\t--Reset distance values.\n";)
         /* Reset distance values. */
         for (int k = 0;k < image.rows; k++) {
             for (int j = 0; j < image.cols; j++) {
@@ -146,18 +240,22 @@ void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat
         }
 
         /* Only compare to pixels in a 2 x step by 2 x step region. */
-        cout << "\t--Only compare to pixels in a 2 x step by 2 x step region.\n";
+        __SlicClustering__generate_superpixels(
+        cout << "\t--Only compare to pixels in a 2 x step by 2 x step region.\n"; )
         for (int j = 0; j < (int) centers.size(); j++) {
-            for (int l = centers[j].v - step; l < centers[j].v + step; l++) {
-                for (int k = centers[j].u - step; k < centers[j].u + step; k++) {
+            // cout << "@j (centersIdx)=" << j << "\t";
+            // cout << "k(rowsIdx)= " << centers[j].u - step  << "  --->  " << centers[j].u + step << "\t";
+            // cout << "l(colIdx)= " << centers[j].v - step  << "  --->  " << centers[j].v + step << "\t";
+            // cout << endl;
+
+            for (int k = centers[j].u - step; k < centers[j].u + step; k++) {
+                for (int l = centers[j].v - step; l < centers[j].v + step; l++) {
 
                     if (k >= 0 && k < image.rows && l >= 0 && l < image.cols ) {
                         PixElement tmp;
                         tmp.u = k; tmp.v = l;
 
-                        #if 0
-                        float depth_val = depth.at<uint16_t>( k, l );
-                        #else
+
                         float depth_val;
                         if( depth.type() == CV_16UC1 )
                             depth_val = depth.at<uint16_t>( k, l );
@@ -168,8 +266,12 @@ void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat
                             cout << "depth type is neighter of CV_16UC1 or CV_32FC1\n";
                             exit(1);
                         }
-                        #endif
-                        back_project( l, k,  depth_val,  tmp.X, tmp.Y, tmp.Z );
+
+                        // back_project( l, k,  depth_val,  tmp.X, tmp.Y, tmp.Z );
+                        if( depth_val < 1e-3 || depth_val > 25. )
+                            tmp.D = -1.0;
+                        else
+                            tmp.D = depth_val;
 
 
                         #if COLOR_CHANNEL == 3
@@ -194,47 +296,31 @@ void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat
         }
 
         /* Clear the center values. */
-        cout << "\t--Clear the center values.\n";
+        __SlicClustering__generate_superpixels(
+        cout << "\t--Clear the center values.\n"; )
         for (int j = 0; j < (int) centers.size(); j++) {
             // centers[j][0] = centers[j][1] = centers[j][2] = centers[j][3] = centers[j][4] = 0;
             centers[j].reset();
             center_counts[j] = 0;
+            center_counts_depth[j] = 0;
         }
 
         /* Compute the new cluster centers. */
-        cout << "\t--Compute the new cluster centers.\n";
-        for (int j = 0; j < image.cols; j++) {
-            for (int k = 0; k < image.rows; k++) {
+        __SlicClustering__generate_superpixels(
+        cout << "\t--Compute the new cluster centers.\n";)
+        for (int k = 0; k < image.rows; k++) {
+            for (int j = 0; j < image.cols; j++) {
                 int c_id = clusters[k][j];
 
                 if (c_id != -1) {
                     PixElement tmp;
                     tmp.u = k; tmp.v = j;
 
-                    #if 0
-                    float depth_val = depth.at<uint16_t>( tmp.u, tmp.v );
-                    #else
-                    float depth_val;
-                    if( depth.type() == CV_16UC1 )
-                        depth_val = depth.at<uint16_t>( tmp.u, tmp.v );
-                    else if( depth.type() == CV_32FC1 )
-                        depth_val = depth.at<float>( tmp.u, tmp.v );
-                    else {
-                        assert( false );
-                        cout << "depth type is neighter of CV_16UC1 or CV_32FC1\n";
-                        exit(1);
-                    }
-                    #endif
-                    back_project( tmp.v, tmp.u,  depth_val,  tmp.X, tmp.Y, tmp.Z );
-
-
-
+                    // Add up pixel 2d locations
                     centers[c_id].u += tmp.u;
                     centers[c_id].v += tmp.v;
-                    centers[c_id].X += tmp.X;
-                    centers[c_id].Y += tmp.Y;
-                    centers[c_id].Z += tmp.Z;
 
+                    // Add up colors
                     #if COLOR_CHANNEL == 3
                     cv::Scalar colour = image.at< cv::Vec3b >( tmp.u, tmp.v );
                     tmp.red = colour[0]; tmp.green = colour[1]; tmp.blue = colour[2];
@@ -246,40 +332,85 @@ void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat
                     centers[c_id].intensity += tmp.intensity;
                     #endif
 
+
+                    // keep track of how many pixels added (to be divided later to get the mean)
                     center_counts[c_id] += 1;
+
+
+                    // Handling for depth TODO, need to do this separately
+                    float depth_val;
+                    if( depth.type() == CV_16UC1 )
+                        depth_val = (float) depth.at<uint16_t>( tmp.u, tmp.v );
+                    else if( depth.type() == CV_32FC1 )
+                        depth_val = (float) depth.at<float>( tmp.u, tmp.v );
+                    else {
+                        cout << "depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                        assert( false );
+                        exit(1);
+                    }
+
+                    if( depth_val < 1e-3 || depth_val > 25. ) {
+                        //igore
+                        // cout << "ignore depth value\n";
+                    }
+                    else {
+                        centers[c_id].D += depth_val;
+                        center_counts_depth[c_id] += 1;
+                    }
+
+
+
+
                 }
             }
         }
 
+        #if 0
+        cout << "Print the info after reassignment of centers\n";
+        for (int j = 0; j < (int) centers.size(); j++) {
+            cout << "cluster#" << j << " of total clusters = " << centers.size() << "\t";
+            if(  center_counts[j] ==  center_counts_depth[j] )
+                cout << TermColor::GREEN();
+            else cout << TermColor::RED();
+
+            cout << "centers_counts=" << center_counts[j] << "\t";
+            cout << "center_counts_depth=" << center_counts_depth[j] << "\t";
+            cout << endl;
+
+            cout << TermColor::RESET();
+
+        }
+        // cout << "EXIT...\n";
+        // exit(1);
+        #endif
+
 
         /* Remove Clusters with no or less support */
-        // TODO: sometimes there are some clusters have too small a support,
         vector<int> idx_to_remove;
         for (int j = 0; j < (int) centers.size(); j++) {
-            if( center_counts[j] < 10 ) {
-                cout << "cluster#" << j << " of total clusters = " << centers.size() << " has a support of " <<  center_counts[j]  << " (less than 10), this will cause sigsegv\n";
+            if( center_counts[j] < 10  || center_counts_depth[j] < 10 ) {
+                // cout << "cluster#" << j << " of total clusters = " << centers.size() << " has center_counts=" <<  center_counts[j]  << " (less than 10), and center_counts_depth= " << center_counts_depth[j] << " this will cause sigsegv, so mark as Toremove\n";
                 idx_to_remove.push_back( j );
             }
         }
         for( int jjj=0; jjj<idx_to_remove.size() ; jjj++ ) {
             center_counts.erase( center_counts.begin() + (idx_to_remove[jjj] - jjj) );
+            center_counts_depth.erase( center_counts_depth.begin() + (idx_to_remove[jjj] - jjj) );
             centers.erase( centers.begin() + (idx_to_remove[jjj] - jjj) );
-            cout << "Erase at idx:: "<< idx_to_remove[jjj] - jjj << endl;
+            // cout << "Erase at idx:: "<< idx_to_remove[jjj] - jjj << endl;
         }
 
 
-        /* Normalize the clusters. */
-        cout << "\t--Normalize the clusters\n";
+        /* Normalize the clusters. Only uv, intensity */
+        __SlicClustering__generate_superpixels(
+        cout << "\t--Normalize the clusters\n";)
         assert( centers.size() == center_counts.size() && centers.size() > 0 );
         for (int j = 0; j < (int) centers.size(); j++) {
             assert( center_counts[j] > 0 && (string("number of items in cluster#")+to_string(j)+" were zero.").c_str() );
-
+            assert( center_counts_depth[j] > 0);
 
             centers[j].u /= center_counts[j];
             centers[j].v /= center_counts[j];
-            centers[j].X /= center_counts[j];
-            centers[j].Y /= center_counts[j];
-            centers[j].Z /= center_counts[j];
             #if COLOR_CHANNEL == 3
             centers[j].red /= center_counts[j];
             centers[j].green /= center_counts[j];
@@ -288,11 +419,14 @@ void SlicClustering::generate_superpixels(   const cv::Mat& image, const cv::Mat
             centers[j].intensity /= center_counts[j];
             #endif
 
+            centers[j].D /= center_counts_depth[j];
 
         }
 
+
     }
     m_generate_superpixels = true;
+
 }
 
 
@@ -326,6 +460,7 @@ void SlicClustering::display_center_grid() {
 
 MatrixXd SlicClustering::retrive_superpixel_uv( bool return_homogeneous ) // 2xN matrix or 3xN
 {
+    assert( m_generate_superpixels && "you are calling retrive function before solving" );
     MatrixXd to_ret;
     if( return_homogeneous )
         to_ret = MatrixXd::Ones( 3, centers.size() );
@@ -342,25 +477,35 @@ MatrixXd SlicClustering::retrive_superpixel_uv( bool return_homogeneous ) // 2xN
 
 MatrixXd SlicClustering::retrive_superpixel_XYZ(  bool return_homogeneous ) // 3xN matrix, or 4xN
 {
+    assert( m_generate_superpixels && "you are calling retrive function before solving" );
     MatrixXd to_ret;
+
     if( return_homogeneous )
         to_ret = MatrixXd::Ones( 4, centers.size() );
     else
         to_ret = MatrixXd::Ones( 3, centers.size() );
 
     for (int i = 0; i < (int) centers.size(); i++) {
+        #if 0
         to_ret( 0, i ) = centers[i].X;
         to_ret( 1, i ) = centers[i].Y;
         to_ret( 2, i ) = centers[i].Z;
+        #endif
+        float __X, __Y, __Z;
+        back_project( centers[i].v, centers[i].u, centers[i].D,  __X, __Y, __Z );
+        to_ret( 0, i ) = __X;
+        to_ret( 1, i ) = __Y;
+        to_ret( 2, i ) = __Z;
     }
+
+
 
     return to_ret;
 }
 
 
 
-
-void SlicClustering::colour_with_cluster_means(cv::Mat& image) {
+void SlicClustering::colour_with_cluster_means(cv::Mat& image ) {
     assert( image.channels() == 3 );
 
     vector<cv::Scalar> colours(centers.size());
@@ -398,8 +543,18 @@ void SlicClustering::colour_with_cluster_means(cv::Mat& image) {
 
 
 
-void SlicClustering::display_contours(cv::Mat& image, cv::Scalar colour) {
-    assert( image.channels() == 3 );
+void SlicClustering::display_contours( const cv::Mat& image, cv::Scalar colour, cv::Mat& output ) {
+    // assert( image.channels() == 3 );
+    assert( image.rows > 0 && image.cols > 0 && (image.channels()==1 || image.channels()==3));
+
+
+    if( image.channels() == 3 )
+        output = image.clone();
+    else
+        cv::cvtColor(image, output, cv::COLOR_GRAY2BGR);
+
+
+
     const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
 
@@ -443,6 +598,6 @@ void SlicClustering::display_contours(cv::Mat& image, cv::Scalar colour) {
     cv::Vec3b colo = cv::Vec3b( colour[0], colour[1], colour[2] );
     for (int i = 0; i < (int)contours.size(); i++) {
         // cvSet2D(image, contours[i].y, contours[i].x, colour);
-        image.at< cv::Vec3b >( contours[i] ) = colo;
+        output.at< cv::Vec3b >( contours[i] ) = colo;
     }
 }

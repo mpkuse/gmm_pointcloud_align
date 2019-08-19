@@ -224,6 +224,22 @@ add_executable( local_ptcloud
     src/SlicClustering.cpp
     )
 
+add_executable( inspect_data
+    src/inspect_data.cpp
+    )
+
+
+add_executable( test_slic
+    src/test_slic.cpp
+    ${KuseUtils}
+    src/SlicClustering.cpp
+    )
+
+add_executable( mean_of_vector_using_hubernorm
+    src/mean_of_vector_using_hubernorm.cpp
+    )
+
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -268,6 +284,23 @@ target_link_libraries( test_objloader
        ${catkin_LIBRARIES}
        ${OpenCV_LIBS}
      )
+
+     target_link_libraries( inspect_data
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
+
+      target_link_libraries( test_slic
+         ${catkin_LIBRARIES}
+         ${OpenCV_LIBS}
+       )
+
+     target_link_libraries( mean_of_vector_using_hubernorm
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
+
+
 #############
 ## Install ##
 #############

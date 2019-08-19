@@ -196,6 +196,38 @@ public:
         return __dst;
     }
 
+    
+    static cv::Scalar randomColor( int rng )
+    {
+      //   int icolor = (unsigned) rng;
+
+      #if 0
+      srand( rng );
+        int icolor = (unsigned) rand();
+        //TODO: to get even better colors use rng to generave a hue. With max saturation and brightness convert it to RGB
+        return cv::Scalar( icolor&255, (icolor>>8)&255, (icolor>>16)&255 );
+       #endif
+
+
+
+       cv::Mat ze = cv::Mat::zeros( 3,3, CV_8UC3 );
+      //  ze.at<cv::Vec3b>(0,0)[0] = rand() % 255;
+       ze.at<cv::Vec3b>(0,0)[0] = int( 5458. / (rng+1. ) ) % 255;
+       ze.at<cv::Vec3b>(0,0)[1] = 255;
+       ze.at<cv::Vec3b>(0,0)[2] = 255;
+
+       cv::Mat rgb;
+       cv::cvtColor(ze, rgb,cv::COLOR_HSV2BGR);
+       int r, g, b;
+       r = rgb.at<cv::Vec3b>(0,0)[0];
+       g = rgb.at<cv::Vec3b>(0,0)[1];
+       b = rgb.at<cv::Vec3b>(0,0)[2];
+       return cv::Scalar( r,g,b );
+
+
+
+
+    }
 
 private:
     cv::Mat colormap_color;
