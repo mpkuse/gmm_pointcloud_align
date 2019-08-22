@@ -222,6 +222,7 @@ add_executable( local_ptcloud
     ${CamodocalCameraModelSources}
     ${KuseUtils}
     src/SlicClustering.cpp
+    src/SurfelMap.cpp
     )
 
 add_executable( inspect_data
@@ -239,6 +240,9 @@ add_executable( mean_of_vector_using_hubernorm
     src/mean_of_vector_using_hubernorm.cpp
     )
 
+#add_executable( test_nanoflann
+#        src/test_nanoflann.cpp
+#        )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -299,6 +303,11 @@ target_link_libraries( test_objloader
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
       )
+
+#      target_link_libraries( test_nanoflann
+#         ${catkin_LIBRARIES}
+#         ${OpenCV_LIBS}
+#       )
 
 
 #############

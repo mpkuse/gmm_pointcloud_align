@@ -18,7 +18,7 @@ using namespace Eigen;
 
 double hubernorm_mean( VectorXd& V )
 {
-    const double HUBER_RANGE = 0.4;
+    const double HUBER_RANGE = .4;
     auto initial_guess = V.mean();
     // initial_guess = 10.0;
 
@@ -27,7 +27,7 @@ double hubernorm_mean( VectorXd& V )
     auto sum_L = 0.0;
     auto sum_deriv = 0.0;
 
-    for( int newton_i=0 ; newton_i < 5 ; newton_i++ )
+    for( int newton_i=0 ; newton_i < 15 ; newton_i++ )
     {
 
         sum_L = 0.0;
@@ -38,7 +38,7 @@ double hubernorm_mean( VectorXd& V )
         {
             auto residue = initial_guess - V(i);
 
-            auto L_i = ( abs(residue) < HUBER_RANGE )?( 0.5* residue*residue):( abs(residue) - 0.5*HUBER_RANGE);
+            auto L_i = ( abs(residue) < HUBER_RANGE )?( 0.5* residue*residue):( HUBER_RANGE*(abs(residue) - 0.5*HUBER_RANGE) );
             auto deriv_i = 0.0;
             if( abs(residue) < HUBER_RANGE ) {
                 deriv_i = residue;
@@ -50,11 +50,11 @@ double hubernorm_mean( VectorXd& V )
 
 
             sum_L += L_i;
-            sum_deriv += - (sum_L / deriv_i);
+            sum_deriv += - deriv_i;
         }
 
         cout << "function=" << sum_L << "\tderiv=" << sum_deriv << endl;
-        initial_guess -= 0.1  * sum_deriv;
+        initial_guess -= 5.0/float(newton_i+1)  * sum_deriv;
         cout << "initial_guess ( after itr#" << newton_i << " ) = " << initial_guess << endl;
     }
 }
@@ -101,12 +101,12 @@ double hubernorm_mean2( VectorXd& V )
 int main()
 {
     // DATA
-    VectorXd data = VectorXd::Random( 10 ) * 10.;
-    data(0) = 10.;
+    VectorXd data = VectorXd::Random( 20 ) * 10.;
+    data(0) = 100.;
 
     cout << "data: " << data.transpose() << endl;
     cout << "data.mean() : " << data.mean() << endl;
 
 
-    hubernorm_mean2( data );
+    hubernorm_mean( data );
 }

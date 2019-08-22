@@ -196,7 +196,7 @@ public:
         return __dst;
     }
 
-    
+
     static cv::Scalar randomColor( int rng )
     {
       //   int icolor = (unsigned) rng;

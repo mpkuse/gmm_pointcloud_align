@@ -35,6 +35,9 @@ using namespace Eigen;
 #define COLOR_CHANNEL 1
 // #define COLOR_CHANNEL 3
 
+
+
+
 /* A Pixel is represented by this.. */
 class PixElement {
 public:
@@ -126,8 +129,10 @@ public:
     void display_contours(const cv::Mat& image, cv::Scalar colour, cv::Mat& output );
 
     // data extractor
-    MatrixXd retrive_superpixel_uv( bool return_homogeneous = false ); // 2xN matrix or 3xN
+    MatrixXd retrive_superpixel_uv( bool return_homogeneous = false, bool rowcol_or_xy=false ); // 2xN matrix or 3xN
     MatrixXd retrive_superpixel_XYZ(  bool return_homogeneous = false  ); // 3xN matrix, or 4xN
+    int retrive_nclusters(); // how many final clusters?
+    MatrixXd retrive_superpixel_localnormals();
 
 private:
     /* The cluster assignments and distance values for each pixel. */

@@ -349,6 +349,8 @@ void SlicClustering::generate_superpixels(
                         exit(1);
                     }
 
+                    // TODO: For now just simple averaging of valid depth values is implemented.
+                    //       In the future if need be, wil implement robust mean estimation for depth values.
                     if( depth_val < 1e-3 || depth_val > 25. ) {
                         //igore
                         // cout << "ignore depth value\n";
@@ -388,12 +390,12 @@ void SlicClustering::generate_superpixels(
         /* Remove Clusters with no or less support */
         vector<int> idx_to_remove;
         for (int j = 0; j < (int) centers.size(); j++) {
-            if( center_counts[j] < 10  || center_counts_depth[j] < 10 ) {
+            if( center_counts[j] < 30  || center_counts_depth[j] < 30 ) {
                 // cout << "cluster#" << j << " of total clusters = " << centers.size() << " has center_counts=" <<  center_counts[j]  << " (less than 10), and center_counts_depth= " << center_counts_depth[j] << " this will cause sigsegv, so mark as Toremove\n";
                 idx_to_remove.push_back( j );
             }
         }
-        for( int jjj=0; jjj<idx_to_remove.size() ; jjj++ ) {
+        for( int jjj=0; jjj< (int) idx_to_remove.size() ; jjj++ ) {
             center_counts.erase( center_counts.begin() + (idx_to_remove[jjj] - jjj) );
             center_counts_depth.erase( center_counts_depth.begin() + (idx_to_remove[jjj] - jjj) );
             centers.erase( centers.begin() + (idx_to_remove[jjj] - jjj) );
@@ -431,11 +433,16 @@ void SlicClustering::generate_superpixels(
 
 
 
+
+//--------------------------------------------------------------------------//
+//-------------------- Visualization Functions -----------------------------//
+//--------------------------------------------------------------------------//
+
 void SlicClustering::display_center_grid(cv::Mat& image, cv::Scalar colour) {
     for (int i = 0; i < (int) centers.size(); i++) {
         // cvCircle(image, cvPoint(centers[i][3], centers[i][4]), 2, colour, 2);
-        cout << "center#" << i << "\t count = " << center_counts[i] << "\t";
-        PixElement::pretty_print( centers[i] );
+        // cout << "center#" << i << "\t count = " << center_counts[i] << "\t";
+        // PixElement::pretty_print( centers[i] );
         // cout << endl;
 
         cv::Point pt( centers[i].v, centers[i].u );
@@ -457,51 +464,6 @@ void SlicClustering::display_center_grid() {
     }
 }
 
-
-MatrixXd SlicClustering::retrive_superpixel_uv( bool return_homogeneous ) // 2xN matrix or 3xN
-{
-    assert( m_generate_superpixels && "you are calling retrive function before solving" );
-    MatrixXd to_ret;
-    if( return_homogeneous )
-        to_ret = MatrixXd::Ones( 3, centers.size() );
-    else
-        to_ret = MatrixXd::Ones( 2, centers.size() );
-
-    for (int i = 0; i < (int) centers.size(); i++) {
-        to_ret( 0, i ) = centers[i].v;
-        to_ret( 1, i ) = centers[i].u;
-    }
-
-    return to_ret;
-}
-
-MatrixXd SlicClustering::retrive_superpixel_XYZ(  bool return_homogeneous ) // 3xN matrix, or 4xN
-{
-    assert( m_generate_superpixels && "you are calling retrive function before solving" );
-    MatrixXd to_ret;
-
-    if( return_homogeneous )
-        to_ret = MatrixXd::Ones( 4, centers.size() );
-    else
-        to_ret = MatrixXd::Ones( 3, centers.size() );
-
-    for (int i = 0; i < (int) centers.size(); i++) {
-        #if 0
-        to_ret( 0, i ) = centers[i].X;
-        to_ret( 1, i ) = centers[i].Y;
-        to_ret( 2, i ) = centers[i].Z;
-        #endif
-        float __X, __Y, __Z;
-        back_project( centers[i].v, centers[i].u, centers[i].D,  __X, __Y, __Z );
-        to_ret( 0, i ) = __X;
-        to_ret( 1, i ) = __Y;
-        to_ret( 2, i ) = __Z;
-    }
-
-
-
-    return to_ret;
-}
 
 
 
@@ -600,4 +562,73 @@ void SlicClustering::display_contours( const cv::Mat& image, cv::Scalar colour, 
         // cvSet2D(image, contours[i].y, contours[i].x, colour);
         output.at< cv::Vec3b >( contours[i] ) = colo;
     }
+}
+
+
+
+
+//--------------------------------------------------------------------------//
+//-------------------- Retrive Functions -----------------------------------//
+//--------------------------------------------------------------------------//
+// rowcol_or_xy: true will give row,col; false will give xy
+MatrixXd SlicClustering::retrive_superpixel_uv( bool return_homogeneous, bool rowcol_or_xy ) // 2xN matrix or 3xN
+{
+    assert( m_generate_superpixels && "you are calling retrive function before solving" );
+    MatrixXd to_ret;
+    if( return_homogeneous )
+        to_ret = MatrixXd::Ones( 3, centers.size() );
+    else
+        to_ret = MatrixXd::Ones( 2, centers.size() );
+
+    for (int i = 0; i < (int) centers.size(); i++) {
+
+        if( rowcol_or_xy ) {
+        to_ret( 0, i ) = centers[i].u;
+        to_ret( 1, i ) = centers[i].v;
+        }
+        else{
+            to_ret( 0, i ) = centers[i].v;
+            to_ret( 1, i ) = centers[i].u;
+        }
+    }
+
+    return to_ret;
+}
+
+
+
+MatrixXd SlicClustering::retrive_superpixel_XYZ(  bool return_homogeneous ) // 3xN matrix, or 4xN
+{
+    assert( m_generate_superpixels && "you are calling retrive function before solving" );
+    MatrixXd to_ret;
+
+    if( return_homogeneous )
+        to_ret = MatrixXd::Ones( 4, centers.size() );
+    else
+        to_ret = MatrixXd::Ones( 3, centers.size() );
+
+    for (int i = 0; i < (int) centers.size(); i++) {
+        float __X, __Y, __Z;
+        back_project( centers[i].v, centers[i].u, centers[i].D,  __X, __Y, __Z );
+        to_ret( 0, i ) = __X;
+        to_ret( 1, i ) = __Y;
+        to_ret( 2, i ) = __Z;
+    }
+
+    return to_ret;
+}
+
+
+int SlicClustering::retrive_nclusters()
+{
+    return (int) centers.size();
+}
+
+MatrixXd SlicClustering::retrive_superpixel_localnormals()
+{
+    // for a given superpixel i, the surface normal at this point :
+    // \sum_{pixel u_j is in superpixel i} ( 3dpt_of_superpixelcenter -  3dpts_of_u_j )
+    //           ^^^^ Need to repeat this process for each super pixel
+    cout << "NOT IMPLEMENTED...\n";
+    exit(1);
 }
