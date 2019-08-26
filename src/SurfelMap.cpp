@@ -3,21 +3,15 @@
 
 SurfelMap::SurfelMap( camodocal::CameraPtr _camera)
 {
-    w_T_c.clear();
-    sp_cX.clear();
-    sp_uv.clear();
-
-    S__wX = MatrixXd::Zero( 4, 10000 );
-    S__normal = MatrixXd::Zero( 4, 10000 );
-    S__size = 0;
-    n_fused.clear();
-    n_unstable.clear();
-
+    clear_data();
     m_camera = _camera;
+    surfel_mutex = new std::mutex();
+
 }
 
 bool SurfelMap::clear_data()
 {
+    camIdx.clear();
     w_T_c.clear();
     sp_cX.clear();
     sp_uv.clear();
@@ -49,6 +43,7 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
     cout << TermColor::iGREEN() << "[SurfelMap::fuse_with] Starts\n" << TermColor::RESET();
 
     cout << "---Collect Data\n";
+    camIdx.push_back( i );
     w_T_c.push_back( __wTc );
     sp_cX.push_back( __sp_cX );
     sp_uv.push_back( __sp_uv );
@@ -77,13 +72,17 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
         for( int i=0 ; i<__sp_cX.cols() ; i++ ) {
             if( __sp_cX(2,i) < 0.5 ||  __sp_cX(2,i) > 20  ) //dont initialize surfels if the depth values are not in the stereo range
                 continue;
-            S__wX.col(S__size) = __sp_wX.col(i);
-            S__normal.col( S__size ) = Vector4d( 1.0, 1.0, 1.0, 0.0 ); //TODO
-            n_fused.push_back(0);
-            n_unstable.push_back(0);
-            S__size++;
+
+            {
+                std::lock_guard<std::mutex> lk(*surfel_mutex);
+                S__wX.col(S__size) = __sp_wX.col(i);
+                S__normal.col( S__size ) = Vector4d( 1.0, 1.0, 1.0, 0.0 ); //TODO
+                n_fused.push_back(0);
+                n_unstable.push_back(0);
+                S__size++;
+            }
         }
-        cout << "Added " << __sp_cX.cols() << " new surfels, current surfel count = " << S__size << endl;
+        cout << "[SurfelMap::fuse_with]Added " << __sp_cX.cols() << " new surfels, current surfel count = " << S__size << endl;
         cout << TermColor::iGREEN() << "[SurfelMap::fuse_with] ENDS\n" << TermColor::RESET();
         return true;
 
@@ -112,7 +111,7 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
 
         MatrixXd __ciX = __wTc.inverse() * S__wX.leftCols( S__size );
 
-        //loop over all surfels and perspective_proj each surfel-point on this view
+        //loop over all surfels and perspective_proj each surfel-point on this view, for those surfels visible in this view try to update the 3d positions
         assert( __ciX.rows() == 4 && __ciX.cols() > 0 ); assert( m_camera );
         for( int i=0 ; i<__ciX.cols() ; i++ )
         {
@@ -170,16 +169,32 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
                 __FUSE_A__debug(
                 cout << TermColor::GREEN() << "   diff = " << abs(depth_val - __ciX(2,i)) << ", better than the threshold\n";)
 
-                #if 0
+                #if 1
+                // update surfel's 3d position with current depth_val.
                 if( depth_val > 0.5 && depth_val < 10 ) { //if depth_val is in normal range, i am more confident about depth_val,
-                     Vector4d updated_ciX = .7 * Vector4d(0,0,depth_val,1) + .3 * __ciX.col(i);
-                     S__wX(2,i) = (__wTc * updated_ciX)(2);
+                     Vector3d c_PPP;
+                     m_camera->liftProjective( c_p, c_PPP );
+                     c_PPP *= depth_val; // the new 3d position of this surfel (in current camera frame-of-ref)
+                     Vector4d updated_ciX = .7 * Vector4d(c_PPP(0),c_PPP(1),c_PPP(2),1) + .3 * __ciX.col(i);
+                     {
+                     std::lock_guard<std::mutex> lk(*surfel_mutex);
+                     S__wX.col(i) = __wTc * updated_ciX;
+                     }
                 }
                 else {
-                    Vector4d updated_ciX = .3 * Vector4d(0,0,depth_val,1) + .7 * __ciX.col(i);
-                    S__wX(2,i) = (__wTc * updated_ciX)(2);
+                    Vector3d c_PPP;
+                    m_camera->liftProjective( c_p, c_PPP );
+                    c_PPP *= depth_val; // the new 3d position of this surfel (in current camera frame-of-ref)
+                    Vector4d updated_ciX = .3 * Vector4d(c_PPP(0),c_PPP(1),c_PPP(2),1) + .7 * __ciX.col(i);
+                    {
+                    std::lock_guard<std::mutex> lk(*surfel_mutex);
+                    S__wX.col(i) = __wTc * updated_ciX;
+                    }
+
                 }
-                cout << "   updated surfel depth to : " << S__wX(2,i) << endl;
+                __FUSE_A__debug(
+                cout << "   updated surfel #" << i << "'s 3d position to : " << S__wX.col(i).transpose() << endl;
+                )
                 #endif
                 n_fused[i]++;
 
@@ -237,13 +252,16 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
 
             if( radiusIdx.size() == 0 ) {
                 // attempt to add new surfel
-                __FUSE__debug(
-                cout << TermColor::CYAN() <<  "Add new surfel to the map\n" << TermColor::RESET();)
-                S__wX.col(S__size) = __sp_wX.col(i);
-                S__normal.col( S__size ) = Vector4d( 1.0, 1.0, 1.0, 0.0 ); //TODO
-                n_fused.push_back(0);
-                n_unstable.push_back(0);
-                S__size++;
+                {
+                    std::lock_guard<std::mutex> lk(*surfel_mutex);
+                    __FUSE__debug(
+                    cout << TermColor::CYAN() <<  "Add new surfel to the map\n" << TermColor::RESET();)
+                    S__wX.col(S__size) = __sp_wX.col(i);
+                    S__normal.col( S__size ) = Vector4d( 1.0, 1.0, 1.0, 0.0 ); //TODO
+                    n_fused.push_back(0);
+                    n_unstable.push_back(0);
+                    S__size++;
+                }
                 n_new_surfels++;
             } else {
                 // update an existing superpixel
@@ -269,6 +287,30 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
 }
 
 
+
+//************************** Retrive Data *******************************//
+int SurfelMap::surfelSize() const
+{
+    std::lock_guard<std::mutex> lk(*surfel_mutex);
+    return S__size;
+}
+
+Vector4d SurfelMap::surfelWorldPosition(int i) const //returns i'th 3d pt
+{
+    std::lock_guard<std::mutex> lk(*surfel_mutex);
+    assert( i >=0 && i<S__size );
+    return S__wX.col(i);
+}
+
+
+MatrixXd SurfelMap::surfelWorldPosition() const //returns all 3d points in db
+{
+    std::lock_guard<std::mutex> lk(*surfel_mutex);
+    return S__wX.leftCols( S__size  );
+}
+
+
+//*************************** HELPERS *************************************//
 void SurfelMap::perspectiveProject3DPoints( const MatrixXd& c_V, MatrixXd& c_v )
 {
     assert( c_V.rows() == 4 && c_V.cols() > 0 );

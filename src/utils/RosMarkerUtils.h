@@ -81,3 +81,24 @@ public:
 
 
 };
+
+
+#include "MiscUtils.h"
+class RosPublishUtils
+{
+public:
+
+    // Given a set of 3d points, publish them.
+    //      pub: The publisher object
+    //      _3dpts: either 3xN or 4xN
+    //      ns, id: namespace and id of the visualization_msgs::Marker
+    //      red,green,blue : 0, 255.
+    static void publish_3d( ros::Publisher& pub, MatrixXd& _3dpts, string ns, int id,
+        float red, float green, float blue, float alpha=1.0,
+        int size_multiplier=1.0 );
+
+    static void publish_3d( ros::Publisher& pub, MatrixXd& _3dpts, string ns, int id,
+        int colorcode_by_dim, double min_val, double max_val,
+        int size_multiplier=1.0 );
+
+};

@@ -12,8 +12,11 @@
 #include <math.h>
 #include <vector>
 
-#include <iostream>
-#include <iomanip>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <chrono>
+#include <memory> //needed for std::shared_ptr
 using namespace std;
 
 // Eigen3
@@ -51,12 +54,21 @@ public:
     bool fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __sp_uv, cv::Mat& image_i, cv::Mat& depth_i ) ;
 
 private:
+    vector<int> camIdx;
     vector<Matrix4d> w_T_c; //TODO: it is unnecessary to store current superpixel related info.
     vector<MatrixXd> sp_cX; //TODO: it is unnecessary to store current superpixel related info.
     vector<MatrixXd> sp_uv; //TODO: it is unnecessary to store current superpixel related info.
 
 
-public: // TODO, finally make these private and implement getters
+public:
+    int surfelSize() const;
+    Vector4d surfelWorldPosition(int i) const; //returns i'th 3d pt
+    MatrixXd surfelWorldPosition() const; //returns all 3d points in db. returns 4xN matrix
+    // Vector3d surfelSurfaceNormal(int i); // TODO
+
+private:
+    mutable std::mutex * surfel_mutex;
+
     // Surfels
     MatrixXd S__wX;
     MatrixXd S__normal;

@@ -225,6 +225,14 @@ add_executable( local_ptcloud
     src/SurfelMap.cpp
     )
 
+    add_executable( local_ptcloud2
+        src/local_ptcloud2.cpp
+        ${CamodocalCameraModelSources}
+        ${KuseUtils}
+        src/SlicClustering.cpp
+        src/SurfelMap.cpp
+        )
+
 add_executable( inspect_data
     src/inspect_data.cpp
     )
@@ -288,6 +296,11 @@ target_link_libraries( test_objloader
        ${catkin_LIBRARIES}
        ${OpenCV_LIBS}
      )
+
+     target_link_libraries( local_ptcloud2
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
 
      target_link_libraries( inspect_data
         ${catkin_LIBRARIES}

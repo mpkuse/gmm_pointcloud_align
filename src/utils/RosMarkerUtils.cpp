@@ -619,3 +619,61 @@ void RosMarkerUtils::add_colors_to_marker( const MatrixXd& X, visualization_msgs
         marker.colors.push_back( pt_color );
     }
 }
+
+
+void RosPublishUtils::publish_3d( ros::Publisher& pub, MatrixXd& _3dpts,
+    string ns, int id,
+    float red, float green, float blue, float alpha,
+    int size_multiplier )
+{
+    assert( size_multiplier > 0 );
+    assert( alpha>0 && alpha<= 1.0 );
+
+    visualization_msgs::Marker local_3dpt;
+    RosMarkerUtils::init_points_marker( local_3dpt );
+    local_3dpt.ns = ns;
+    local_3dpt.id = id;
+    local_3dpt.scale.x = 0.02*size_multiplier;
+    local_3dpt.scale.y = 0.02*size_multiplier;
+
+    RosMarkerUtils::add_points_to_marker( _3dpts, local_3dpt, true );
+    RosMarkerUtils::setcolor_to_marker( red/255., green/255., blue/255., alpha, local_3dpt );
+
+    pub.publish( local_3dpt );
+}
+
+
+
+// This will colorcode the 3dpoints by x `colorcode_by_dim=0`, [min, max] will get the false color.
+void RosPublishUtils::publish_3d( ros::Publisher& pub, MatrixXd& _3dpts,
+    string ns, int id,
+    int colorcode_by_dim, double min_val, double max_val,
+    int size_multiplier )
+{
+    assert( size_multiplier > 0 );
+    assert( colorcode_by_dim>=0 && colorcode_by_dim < _3dpts.rows() );
+
+    visualization_msgs::Marker local_3dpt;
+    RosMarkerUtils::init_points_marker( local_3dpt );
+    local_3dpt.ns = ns;
+    local_3dpt.id = id;
+    local_3dpt.scale.x = 0.02*size_multiplier;
+    local_3dpt.scale.y = 0.02*size_multiplier;
+
+    RosMarkerUtils::add_points_to_marker( _3dpts, local_3dpt, true );
+
+    #if 0
+    // RosMarkerUtils::setcolor_to_marker( red/255., green/255., blue/255., .8, local_3dpt );
+    #else
+    FalseColors co;
+    for( int i=0 ; i<_3dpts.cols() ; i++ ) //loop over all the 3d points to determine the color
+    {
+        float f = ( _3dpts(colorcode_by_dim,i) - min_val ) / (max_val - min_val);
+        cv::Scalar col= co.getFalseColor( float( _3dpts(2,i)/10. ) );
+        RosMarkerUtils::add_colors_to_marker(  col[2]/255., col[1]/255., col[0]/255., local_3dpt, (i==0)?true:false );
+
+    }
+    #endif
+
+    pub.publish( local_3dpt );
+}
