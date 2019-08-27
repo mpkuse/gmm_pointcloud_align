@@ -17,7 +17,14 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   camera_model
   interactive_markers
+  pcl_ros
 )
+
+
+find_package(Theia REQUIRED)
+include_directories(${THEIA_INCLUDE_DIRS})
+
+
 
 #set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_BUILD_TYPE "Release")
@@ -29,6 +36,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(Eigen3)
 find_package(OpenCV REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system filesystem)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -161,6 +169,11 @@ FILE( GLOB KuseUtils
     src/utils/CameraGeometry.cpp
 )
 
+FILE( GLOB KaixuanUtils
+    src/surfel_fusion/surfel_map.cpp
+    src/surfel_fusion/fusion_functions.cpp
+    )
+
 FILE( GLOB GaussUtils
     src/utils/GaussianMixtureDataGenerator.cpp
     src/utils/GaussianFunction.cpp
@@ -233,6 +246,13 @@ add_executable( local_ptcloud
         src/SurfelMap.cpp
         )
 
+    add_executable( densesurfelmapping_standalone
+        #src/surfel_fusion/main.cpp
+        src/densesurfelmapping_standalone.cpp
+        ${KuseUtils}
+        ${KaixuanUtils}
+    )
+
 add_executable( inspect_data
     src/inspect_data.cpp
     )
@@ -300,7 +320,14 @@ target_link_libraries( test_objloader
      target_link_libraries( local_ptcloud2
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
+        ${THEIA_LIBRARIES}
       )
+
+      target_link_libraries( densesurfelmapping_standalone
+         ${catkin_LIBRARIES}
+         ${OpenCV_LIBS}
+       )
+
 
      target_link_libraries( inspect_data
         ${catkin_LIBRARIES}

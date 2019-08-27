@@ -45,6 +45,7 @@ using json = nlohmann::json;
 
 #include "XLoader.h"
 
+#include <theia/theia.h>
 
 
 bool process_this_datanode( XLoader& xloader, json data_node,
@@ -78,7 +79,7 @@ bool process_this_datanode( XLoader& xloader, json data_node,
     // SlicClustering slic_obj;
     // slic_obj.generate( left_image, out3D, ddd, dddd );
     int w = left_image.cols, h = left_image.rows;
-    int nr_superpixels = 400;
+    int nr_superpixels = 1000;
     int nc = 40;
     double step = sqrt((w * h) / ( (double) nr_superpixels ) ); ///< step size per cluster
     cout << "===\n";
@@ -270,7 +271,7 @@ void print_usage( cv::Mat& status )
 {
     string msg = "# Usage;";
     msg += "a,s,d,f....: step by 1,  the the idx_ptr;";
-    msg += "a,s,d,f....: step by 10, the the idx_ptr;";
+    msg += "z,x,c,v....: step by 10, the the idx_ptr;";
     msg += "q,w,e,r.....: Process the series;";
     msg += "n: fork new idx_ptr, m: new idx_ptr from 0;";
     msg += "ESC: quit;";
@@ -278,6 +279,8 @@ void print_usage( cv::Mat& status )
 
 }
 
+
+#if 1
 int main( int argc, char ** argv )
 {
     //
@@ -381,6 +384,14 @@ int main( int argc, char ** argv )
             break;
         }
 
+        if( ch == 'p' )
+        {
+            // retrive data
+            cout << "TODO.....Implement Wang Kaixuin surfel mapping here\n";
+            exit( 2 );
+
+
+        }
 
         // process the idx_ptr
         if( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) {
@@ -434,7 +445,6 @@ int main( int argc, char ** argv )
             cv::imshow( win_name.c_str(), viz_slic );
 
             cv::Scalar color = FalseColors::randomColor(seriesI);
-
             MatrixXd sp_wX = all_odom_poses[ seriesI ][0].inverse() * wTc * sp_cX; //< w_T_c0 * w_T_ci * cX
             RosPublishUtils::publish_3d( marker_pub, sp_wX,
                 "raw_pts"+to_string(seriesI), all_i[ seriesI ].size(),
@@ -451,7 +461,7 @@ int main( int argc, char ** argv )
             marker_pub.publish( cam_viz_i );
 
 
-
+            #if 1
             //---- SurfelFuse & Retrive
             ElapsedTime t_fusesurfels; t_fusesurfels.tic();
             vec_map[seriesI]->fuse_with( idx_ptr[seriesI],  wTc, sp_cX, sp_uv, left_image_i, depth_map_i );
@@ -471,6 +481,7 @@ int main( int argc, char ** argv )
                 1, -1, 5,
                 2.0 );
             #endif
+            #endif
 
 
             //--- waitkey (to show results)
@@ -487,11 +498,79 @@ int main( int argc, char ** argv )
         // various alignment methods
         if( ch == '1' ) {
             // ICP, on map0, map1
-            cout << "ch == 1, not implemented\n";
-            exit(2);
+            assert( vec_map.size() >= 2 && "You requsted ICP computation, however it needs atleast 2 surfel maps");
+
+            MatrixXd __0X;
+            {
+                int seriesI = 0;
+                __0X = all_odom_poses[ seriesI ][0].inverse() * vec_map[seriesI]->surfelWorldPosition();
+            } cout << "__0X : " << __0X.rows() << " x " << __0X.cols() << endl;
+
+            MatrixXd __0Y;
+            {
+                int seriesI = 1;
+                __0Y = all_odom_poses[ seriesI ][0].inverse() * vec_map[seriesI]->surfelWorldPosition();
+            } cout << "__0Y : " << __0Y.rows() << " x " << __0Y.cols() << endl;
+
+            std::vector<Vector3d> a_X;
+            for( int i=0 ; i<__0X.cols() ; i++ )
+            {
+                a_X.push_back( __0X.col(i).topRows(3) );
+            }
+
+            std::vector<Vector3d> b_X;
+            for( int i=0 ; i<__0Y.cols() ; i++ )
+            {
+                b_X.push_back( __0Y.col(i).topRows(3) );
+            }
+
+            Matrix3d ____R = Matrix3d::Identity();
+            Vector3d ____t = Vector3d::Zero(); double ___s=1.0;
+            theia::AlignPointCloudsUmeyama( a_X, b_X, &____R, &____t, &___s );
         }
 
     } //while(ros::ok())
 
 
 }
+#endif
+
+
+
+
+#if 0
+// Retrive data
+int main()
+{
+    //
+    // Load Camera (camodocal)
+    //
+    XLoader xloader;
+    xloader.load_left_camera();
+    xloader.load_right_camera();
+    xloader.load_stereo_extrinsics();
+    xloader.make_stereogeometry();
+
+
+    //
+    // Load JSON
+    //
+    json STATE = xloader.load_json();
+
+
+    int idx = 23;
+    json data_node = STATE["DataNodes"][idx];
+    ros::Time stamp = ros::Time().fromNSec( data_node["stampNSec"] );
+    Matrix4d w_T_c;
+    // MatrixXd sp_cX;
+    // MatrixXd sp_uv;
+    cv::Mat left_image_i, right_image_i, depth_map_i;
+    cv::Mat disparity_for_visualization_gray;
+
+
+    bool status = xloader.retrive_data_from_json_datanode( data_node,
+                    stamp, w_T_c,
+                    left_image_i, right_image_i, depth_map_i, disparity_for_visualization_gray );
+}
+
+#endif

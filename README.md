@@ -31,7 +31,8 @@
 - Pomerleau, Siegwart et al "Comparing icp variants onreal-world data sets" AURO2013
 - Yang et al "Go-icp: a globally optimal solution to 3dicp point-set registration" PAMI2016
 - Briagles et al. " Convex global 3d registration with lagrangianduality." CVPR2017
+- OpenGR: A C++ library for 3D Global Registration, 2017 
 
-## Pointcloud datasets 
+## Pointcloud datasets
 -  ICL-NUIM dataset.: A Benchmark for {RGB-D} Visual Odometry, {3D} Reconstruction and {SLAM} ICRA2014
 - Sun3d dataset: http://sun3d.cs.princeton.edu/

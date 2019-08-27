@@ -190,6 +190,9 @@ public:
 
 
             // make a depth map
+
+            #if 0 //set this to 1 to use stereogeometry, set this to zero to use depth image from disk.
+            // Using StereoGeometry
             ElapsedTime t_stereogeom;
             cv::Mat disparity;
             // cv::Mat disparity_for_visualization_gray;
@@ -208,7 +211,42 @@ public:
 
 
             // cv::imshow( "disparity" , disparity_for_visualization_gray );
+            #else
+            // Direct Load depth
+            string depth_image_fname = base_path+"/cerebro_stash/depth_image__" + std::to_string(stamp.toNSec()) + ".jpg.png";
+            cout << "\tload depth_image_fname: " << depth_image_fname << endl;
+            cv::Mat depth_image = cv::imread( depth_image_fname, -1 );
+            if( !depth_image.data ) {
+                cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load depth-image...return false\n" << TermColor::RESET();
+                return false;
+            }
+            cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl;
 
+
+            depth_image.convertTo( depth_map, CV_32FC1 , 1.0/1000. );
+
+
+            disparity_for_visualization_gray = cv::Mat::zeros( depth_image.rows, depth_image.cols, CV_8UC3 );
+            FalseColors false_c;
+            for( int r=0 ; r<depth_map.rows ; r++ ) {
+                for( int c=0 ; c<depth_map.cols ; c++ ) {
+                    float val = depth_map.at<float>( r,c );
+                    // cout << val << ", ";
+
+                    cv::Scalar _c = false_c.getFalseColor( val/3.0 );
+                    disparity_for_visualization_gray.at<cv::Vec3b>(r,c)[0] = _c[0];
+                    disparity_for_visualization_gray.at<cv::Vec3b>(r,c)[1] = _c[1];
+                    disparity_for_visualization_gray.at<cv::Vec3b>(r,c)[2] = _c[2];
+                }
+                // cout << endl;
+            }
+            // cv::applyColorMap(depth_map, disparity_for_visualization_gray, cv::COLORMAP_JET);
+            // cv::imshow( "left_image" , left_image );
+            // cv::imshow( "depth COLORMAP_JET" , disparity_for_visualization_gray );
+            // cv::waitKey(0);
+
+
+            #endif
 
 
             #if 0 // save to file (opencv yaml)
