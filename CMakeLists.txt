@@ -244,6 +244,7 @@ add_executable( local_ptcloud
         ${KuseUtils}
         src/SlicClustering.cpp
         src/SurfelMap.cpp
+        ${KaixuanUtils}
         )
 
     add_executable( densesurfelmapping_standalone

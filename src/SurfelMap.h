@@ -46,9 +46,9 @@ public:
 };
 */
 
-class SurfelMap {
+class SurfelXMap {
 public:
-    SurfelMap( camodocal::CameraPtr _camera );
+    SurfelXMap( camodocal::CameraPtr _camera );
     bool clear_data();
 
     bool fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __sp_uv, cv::Mat& image_i, cv::Mat& depth_i ) ;

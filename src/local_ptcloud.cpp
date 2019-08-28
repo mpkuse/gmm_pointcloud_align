@@ -544,8 +544,8 @@ int main( int argc, char ** argv ) {
     vector<Matrix4d> curr_odom_poses;
     vector<MatrixXd> curr_sp_cX;
 
-    vector<SurfelMap> vec_map;
-    SurfelMap map1(left_camera); //< current surfelmap
+    vector<SurfelXMap> vec_map;
+    SurfelXMap map1(left_camera); //< current surfelmap
 
     for( int i=0 ; i< (int) STATE["DataNodes"].size() ; i++ )
     {

@@ -221,8 +221,8 @@ public:
                 return false;
             }
             cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl;
-
-
+            depth_map = depth_image; 
+            #if 0
             depth_image.convertTo( depth_map, CV_32FC1 , 1.0/1000. );
 
 
@@ -244,6 +244,7 @@ public:
             // cv::imshow( "left_image" , left_image );
             // cv::imshow( "depth COLORMAP_JET" , disparity_for_visualization_gray );
             // cv::waitKey(0);
+            #endif
 
 
             #endif

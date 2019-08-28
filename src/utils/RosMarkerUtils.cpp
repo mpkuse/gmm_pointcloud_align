@@ -557,7 +557,15 @@ void RosMarkerUtils::add_points_to_marker( const MatrixXd& X, visualization_msgs
         marker.points.clear();
 
 
+    int has_nan = 0;
     for( int i=0 ; i<X.cols() ; i++ ) {
+        if( std::isnan(X.col(i).sum()) || std::isnan(X.col(i).sum()) )
+        {
+            // cout << "[RosMarkerUtils::add_points_to_marker] WARN found Nan or Inf at col#" << i << endl;
+            has_nan++;
+            continue;
+        }
+
         if( X.rows() == 3 ) {
             pt.x = X(0,i); pt.y = X(1,i); pt.z = X(2,i);
         }
@@ -566,6 +574,9 @@ void RosMarkerUtils::add_points_to_marker( const MatrixXd& X, visualization_msgs
         }
         marker.points.push_back( pt );
     }
+
+    if( has_nan > 0 )
+    cout << "[RosMarkerUtils::add_points_to_marker] found nan for " << has_nan << " out of total " << X.cols() << endl;
 }
 
 

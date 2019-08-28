@@ -1,7 +1,7 @@
 #include "SurfelMap.h"
 
 
-SurfelMap::SurfelMap( camodocal::CameraPtr _camera)
+SurfelXMap::SurfelXMap( camodocal::CameraPtr _camera)
 {
     clear_data();
     m_camera = _camera;
@@ -9,7 +9,7 @@ SurfelMap::SurfelMap( camodocal::CameraPtr _camera)
 
 }
 
-bool SurfelMap::clear_data()
+bool SurfelXMap::clear_data()
 {
     camIdx.clear();
     w_T_c.clear();
@@ -37,10 +37,10 @@ bool SurfelMap::clear_data()
 // #define __FUSE__debug( msg ) msg;
 #define __FUSE__debug( msg ) ;
 
-bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __sp_uv,
+bool SurfelXMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __sp_uv,
     cv::Mat& image_i, cv::Mat& depth_i )
 {
-    cout << TermColor::iGREEN() << "[SurfelMap::fuse_with] Starts\n" << TermColor::RESET();
+    cout << TermColor::iGREEN() << "[SurfelXMap::fuse_with] Starts\n" << TermColor::RESET();
 
     cout << "---Collect Data\n";
     camIdx.push_back( i );
@@ -82,8 +82,8 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
                 S__size++;
             }
         }
-        cout << "[SurfelMap::fuse_with]Added " << __sp_cX.cols() << " new surfels, current surfel count = " << S__size << endl;
-        cout << TermColor::iGREEN() << "[SurfelMap::fuse_with] ENDS\n" << TermColor::RESET();
+        cout << "[SurfelXMap::fuse_with]Added " << __sp_cX.cols() << " new surfels, current surfel count = " << S__size << endl;
+        cout << TermColor::iGREEN() << "[SurfelXMap::fuse_with] ENDS\n" << TermColor::RESET();
         return true;
 
     }
@@ -145,7 +145,7 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
             else if( depth_i.type() == CV_32FC1 )
                 depth_val = (float) depth_i.at<float>( (int)c_p(1), (int)c_p(0)  );
             else {
-                cout << "[SurfelMap::fuse_with]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                cout << "[SurfelXMap::fuse_with]depth type is neighter of CV_16UC1 or CV_32FC1\n";
                 assert( false );
                 exit(1);
             }
@@ -282,20 +282,20 @@ bool SurfelMap::fuse_with( int i, Matrix4d __wTc, MatrixXd __sp_cX, MatrixXd __s
     // print means and sigmas of the current surfels.
 
 
-    cout << TermColor::iGREEN() << "[SurfelMap::fuse_with] ENDS\n" << TermColor::RESET();
+    cout << TermColor::iGREEN() << "[SurfelXMap::fuse_with] ENDS\n" << TermColor::RESET();
     return true;
 }
 
 
 
 //************************** Retrive Data *******************************//
-int SurfelMap::surfelSize() const
+int SurfelXMap::surfelSize() const
 {
     std::lock_guard<std::mutex> lk(*surfel_mutex);
     return S__size;
 }
 
-Vector4d SurfelMap::surfelWorldPosition(int i) const //returns i'th 3d pt
+Vector4d SurfelXMap::surfelWorldPosition(int i) const //returns i'th 3d pt
 {
     std::lock_guard<std::mutex> lk(*surfel_mutex);
     assert( i >=0 && i<S__size );
@@ -303,7 +303,7 @@ Vector4d SurfelMap::surfelWorldPosition(int i) const //returns i'th 3d pt
 }
 
 
-MatrixXd SurfelMap::surfelWorldPosition() const //returns all 3d points in db
+MatrixXd SurfelXMap::surfelWorldPosition() const //returns all 3d points in db
 {
     std::lock_guard<std::mutex> lk(*surfel_mutex);
     return S__wX.leftCols( S__size  );
@@ -311,7 +311,7 @@ MatrixXd SurfelMap::surfelWorldPosition() const //returns all 3d points in db
 
 
 //*************************** HELPERS *************************************//
-void SurfelMap::perspectiveProject3DPoints( const MatrixXd& c_V, MatrixXd& c_v )
+void SurfelXMap::perspectiveProject3DPoints( const MatrixXd& c_V, MatrixXd& c_v )
 {
     assert( c_V.rows() == 4 && c_V.cols() > 0 );
 
@@ -320,7 +320,7 @@ void SurfelMap::perspectiveProject3DPoints( const MatrixXd& c_V, MatrixXd& c_v )
     // return ;
     //c_V : 4xN
     if( !m_camera ) {
-        cout << TermColor::RED() << "[SurfelMap::perspectiveProject3DPoints] FATAL ERROR The cameras was not set...you need to set the camera to this class before calling the perspective function\n" << TermColor::RESET();
+        cout << TermColor::RED() << "[SurfelXMap::perspectiveProject3DPoints] FATAL ERROR The cameras was not set...you need to set the camera to this class before calling the perspective function\n" << TermColor::RESET();
         exit(2);
     }
 
@@ -337,7 +337,7 @@ void SurfelMap::perspectiveProject3DPoints( const MatrixXd& c_V, MatrixXd& c_v )
 
 
 
-bool SurfelMap::find_nn_of_b_in_A( const MatrixXd& A, const VectorXd& b,
+bool SurfelXMap::find_nn_of_b_in_A( const MatrixXd& A, const VectorXd& b,
     const double radius, vector<int>& to_retidx ) const
 {
     assert( A.rows() == b.rows() && (b.rows() > 0 ) );

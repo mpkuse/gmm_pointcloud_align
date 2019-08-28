@@ -45,9 +45,13 @@ using json = nlohmann::json;
 
 #include "XLoader.h"
 
+#include "surfel_fusion/surfel_map.h"
+
 #include <theia/theia.h>
 
 
+
+// my version of surfel fusion
 bool process_this_datanode( XLoader& xloader, json data_node,
     Matrix4d& toret__wTc, MatrixXd& toret__cX, MatrixXd& toret__uv,
     cv::Mat& toret__left_image, cv::Mat& toret__depth_image,
@@ -251,7 +255,7 @@ void print_processingseries_status( const map<  int,  vector<int>   > & all_i, c
 }
 
 
-void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& status )
+void print_surfelmaps_status( const map< int, SurfelXMap* > vec_map, cv::Mat& status )
 {
     string msg = "#SurfelMaps=" + to_string( vec_map.size() ) + ";";
     for( auto it=vec_map.begin() ; it!= vec_map.end() ; it++ )
@@ -260,6 +264,22 @@ void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& sta
         // msg += to_string(   *(it->second.begin()) ) + "---->";
         // msg += to_string(   *(it->second.rbegin()) );
         msg += "number of 3dpts = "+to_string( it->second->surfelSize() );
+        msg += ";";
+    }
+    MiscUtils::append_status_image( status, msg, .6, cv::Scalar(0,0,0), cv::Scalar(0,255,0) );
+
+}
+
+
+void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& status )
+{
+    string msg = "#SurfelMaps=" + to_string( vec_map.size() ) + ";";
+    for( auto it=vec_map.begin() ; it!= vec_map.end() ; it++ )
+    {
+        msg += "surfelmap#" + to_string( it->first ) + ": ";
+        // msg += to_string(   *(it->second.begin()) ) + "---->";
+        // msg += to_string(   *(it->second.rbegin()) );
+        msg += "number of 3dpts = "+to_string( it->second->n_surfels() );
         msg += ";";
     }
     MiscUtils::append_status_image( status, msg, .6, cv::Scalar(0,0,0), cv::Scalar(0,255,0) );
@@ -317,7 +337,8 @@ int main( int argc, char ** argv )
     map<  int,  vector<Matrix4d>    > all_odom_poses;
     map<  int,  vector<MatrixXd>    > all_sp_cX;
 
-    map< int, SurfelMap* > vec_map;
+    map< int, SurfelXMap* > vec_map;
+    map< int, SurfelMap* > vec_surf_map;
 
     // inf loop
     while( ros::ok() )
@@ -369,7 +390,8 @@ int main( int argc, char ** argv )
         cv::Mat status_im = cv::Mat::zeros( 10, 500, CV_8UC3 );
         print_idx_ptr_status( idx_ptr, STATE, status_im );
         print_processingseries_status( all_i, status_im );
-        print_surfelmaps_status( vec_map, status_im );
+        // print_surfelmaps_status( vec_map, status_im );
+        print_surfelmaps_status( vec_surf_map, status_im );
         print_usage( status_im );
         cv::imshow( "status", status_im );
 
@@ -384,17 +406,119 @@ int main( int argc, char ** argv )
             break;
         }
 
-        if( ch == 'p' )
+        if( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' )
         {
-            // retrive data
-            cout << "TODO.....Implement Wang Kaixuin surfel mapping here\n";
-            exit( 2 );
+            int seriesI = 0;
+            switch (ch) {
+                case 'q':
+                seriesI = 0; break;
+                case 'w':
+                seriesI = 1; break;
+                case 'e':
+                seriesI = 2; break;
+                case 'r':
+                seriesI = 3; break;
+                default: assert( false );
+            }
+            assert( seriesI >= 0 && seriesI<idx_ptr.size() && "You choose to process a series for which the pointer doesnopt exist. The correct way is to press n to start a new pointer and then go by processing it\n" );
 
+            cout << TermColor::BLUE() << "Q PRESSED, PROCESS\n";
+            json data_node = STATE["DataNodes"][idx_ptr[seriesI]];
+
+            //--- Retrive data
+            ros::Time dxc__stamp;
+            Matrix4d dxc__w_T_c;
+            cv::Mat dxc__left_image, dxc__right_image;
+            cv::Mat dxc__depth_image, dxc__disparity_for_visualization_gray;
+            bool status = xloader.retrive_data_from_json_datanode( data_node,
+                            dxc__stamp, dxc__w_T_c,
+                            dxc__left_image, dxc__right_image, dxc__depth_image, dxc__disparity_for_visualization_gray );
+            if( status == false )  {
+                cout << "[main] not processing this node because `retrive_data_from_json_datanode` returned false\n";
+                return false;
+            }
+
+
+            //--- Note this data (ie. output of slic)
+            if( all_i.count( seriesI ) == 0 ) {
+                // not found, so first in the sequence.
+                cout << ">>>This is the first element to be processed in seriesI=" <<seriesI << endl;
+
+                all_i[ seriesI ] = vector<int>();
+                all_odom_poses[ seriesI ] = vector<Matrix4d>();
+                all_sp_cX[ seriesI ] = vector<MatrixXd>();
+
+                vec_surf_map[ seriesI ] = new SurfelMap( true );
+            } else {
+                cout << ">>>Number of elements processed in this seriesI=" << seriesI << " is : " << all_i[seriesI].size() << endl;
+            }
+            all_i[ seriesI ].push_back( idx_ptr[seriesI] );
+            all_odom_poses[ seriesI ].push_back( dxc__w_T_c );
+
+            #if 1
+            //------------ Wang Kaixuan's Dense Surfel Mapping -------------------//
+            vec_surf_map[ seriesI ]->image_input( dxc__stamp, dxc__left_image );
+            vec_surf_map[ seriesI ]->depth_input( dxc__stamp, dxc__depth_image );
+            vec_surf_map[ seriesI ]->camera_pose__w_T_ci__input( dxc__stamp, dxc__w_T_c );
+
+            // : 3d point retrive
+            cout << "n_active_surfels = " << vec_surf_map[ seriesI ]->n_active_surfels() << "\t";
+            cout << "n_fused_surfels = " << vec_surf_map[ seriesI ]->n_fused_surfels() << "\t";
+            cout << "n_surfels = " << vec_surf_map[ seriesI ]->n_surfels() << "\n";
+
+            MatrixXd _w_X = vec_surf_map[ seriesI ]->get_surfel_positions();
+            cout << "_w_X : " << _w_X.rows() << "x" << _w_X.cols() << endl;
+
+            MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * _w_X;
+            // cout << "__p\n" << __p << endl;
+
+
+
+            //------------ END Wang Kaixuan's Dense Surfel Mapping -------------------//
+
+
+            //------ PLOT 3d points in rviz
+            // TODO
+            #if 1
+            cv::Scalar color = FalseColors::randomColor(seriesI);
+            #if 1 // fixed color regime
+            RosPublishUtils::publish_3d( marker_pub, __p,
+                "surfels"+to_string(vec_surf_map.size()), 0,
+                float(color[2]), float(color[1]), float(color[0]), float(1.0), 1.5 );
+            #else
+            RosPublishUtils::publish_3d( marker_pub, __p,
+                "surfels"+to_string(vec_surf_map.size()), 0,
+                1, -1, 5,
+                2.0 );
+            #endif
+            #endif
+
+
+            //----- PLOT camera
+            visualization_msgs::Marker cam_viz_i;
+            cam_viz_i.ns = "cam_viz"+to_string(seriesI);
+            cam_viz_i.id = all_i[ seriesI ].size();
+            RosMarkerUtils::init_camera_marker( cam_viz_i, 4.0 );
+            Matrix4d c0_T_ci =  all_odom_poses[ seriesI ][0].inverse() * dxc__w_T_c;
+            RosMarkerUtils::setpose_to_marker( c0_T_ci, cam_viz_i  );
+            RosMarkerUtils::setcolor_to_marker( color[2]/255., color[1]/255., color[0]/255., 1.0, cam_viz_i );
+            marker_pub.publish( cam_viz_i );
+
+
+            //--- waitkey (to show results)
+            cout << TermColor::iGREEN() << "Showing results, press <space> to continue\n" << TermColor::RESET();
+            ros::spinOnce();
+            cv::waitKey(0);
+            idx_ptr[seriesI]++; //move the pointer ahead by 1
+
+
+            #endif
 
         }
 
         // process the idx_ptr
-        if( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) {
+        if( false && ( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) )
+        {
             int seriesI = 0;
             switch (ch) {
                 case 'q':
@@ -431,7 +555,7 @@ int main( int argc, char ** argv )
                 all_odom_poses[ seriesI ] = vector<Matrix4d>();
                 all_sp_cX[ seriesI ] = vector<MatrixXd>();
 
-                vec_map[ seriesI ] = new SurfelMap( xloader.left_camera );
+                vec_map[ seriesI ] = new SurfelXMap( xloader.left_camera );
             } else {
                 cout << ">>>Number of elements processed in this seriesI=" << seriesI << " is : " << all_i[seriesI].size() << endl;
             }
@@ -531,6 +655,16 @@ int main( int argc, char ** argv )
 
     } //while(ros::ok())
 
+
+
+    // Done, just save all the meshes to disk
+    cout << TermColor::GREEN() << "========Save " << vec_surf_map.size() << " surfelmaps to disk\n========\n" << TermColor::RESET();
+    for( auto it = vec_surf_map.begin() ; it != vec_surf_map.end() ; it++ )
+    {
+        string mesh_fname = xloader.base_path+"/mesh_"+ to_string(it->first) + ".ply";
+        cout << "save vec_surf_map with key=" << it->first << " to file: " << mesh_fname << endl;
+        it->second->save_mesh( mesh_fname );
+    }
 
 }
 #endif
