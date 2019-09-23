@@ -30,6 +30,7 @@
 #include "fusion_functions.h"
 // #include <parameters.h>
 // #include <opengl_render/render_tool.h>
+#include "../utils/TermColor.h"
 
 typedef pcl::PointXYZI PointType;
 typedef pcl::PointCloud<PointType> PointCloud;
@@ -69,6 +70,7 @@ public:
     Eigen::MatrixXd get_surfel_positions() const; // return 4XN matrix
     Eigen::MatrixXd get_surfel_normals() const; // return 4XN matrix
 
+    void print_persurfel_info() const; //prints detailed info of this surfel_map
 
 
 

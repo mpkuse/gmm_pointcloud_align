@@ -227,7 +227,7 @@ void FusionFunctions::fuse_surfels_kernel(
         norm_w(2) = local_surfels[i].nz;
         Eigen::Vector3f norm_c;
         norm_c = inv_pose.block<3, 3>(0, 0) * norm_w;
-        // float predict_view_cos = (norm_w(0) * surfel_p_c(0) + norm_w(1) * surfel_p_c(1) + norm_w(2) * surfel_p_c(2)) 
+        // float predict_view_cos = (norm_w(0) * surfel_p_c(0) + norm_w(1) * surfel_p_c(1) + norm_w(2) * surfel_p_c(2))
         //     / std::sqrt(surfel_p_c(0)*surfel_p_c(0)+surfel_p_c(1)*surfel_p_c(1)+surfel_p_c(2)*surfel_p_c(2));
         // if(predict_view_cos<MAX_ANGLE_COS)
         //     continue;
@@ -263,8 +263,8 @@ void FusionFunctions::fuse_surfels_kernel(
             continue;
         // ##############################################
 
-        float norm_diff_cos = norm_c(0) * superpixel_seeds[sp_index].norm_x 
-            + norm_c(1) * superpixel_seeds[sp_index].norm_y 
+        float norm_diff_cos = norm_c(0) * superpixel_seeds[sp_index].norm_x
+            + norm_c(1) * superpixel_seeds[sp_index].norm_y
             + norm_c(2) * superpixel_seeds[sp_index].norm_z;
         if (norm_diff_cos < MAX_ANGLE_COS)
         {
@@ -307,7 +307,14 @@ void FusionFunctions::fuse_surfels_kernel(
         if (new_size < local_surfels[i].size)
             local_surfels[i].size = new_size;
         local_surfels[i].last_update = reference_frame_index;
-        
+
+        #if 1
+        // addedmby mpkuse to keep track of which frame_id's pixels were used to constryct this surfel
+        local_surfels[i].updates_frameid.push_back(reference_frame_index);
+        local_surfels[i].updates_imx.push_back( superpixel_seeds[sp_index].x );
+        local_surfels[i].updates_imy.push_back( superpixel_seeds[sp_index].y );
+        #endif
+
         if(local_surfels[i].update_times < 20)
             local_surfels[i].update_times += 1;
         superpixel_seeds[sp_index].fused = true;
@@ -358,6 +365,13 @@ void FusionFunctions::initialize_surfels(
         new_ele.weight = get_weight(superpixel_seeds[i].mean_depth);
         new_ele.update_times = 1;
         new_ele.last_update = reference_frame_index;
+
+        #if 1
+        // addedmby mpkuse to keep track of which frame_id's pixels were used to constryct this surfel
+        new_ele.updates_frameid.push_back(reference_frame_index);
+        new_ele.updates_imx.push_back( superpixel_seeds[i].x );
+        new_ele.updates_imy.push_back( superpixel_seeds[i].y );
+        #endif
         new_surfels.push_back(new_ele);
     }
 }

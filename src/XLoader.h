@@ -142,7 +142,42 @@ public:
         return STATE;
     }
 
+    bool retrive_image_data_from_json_datanode( json data_node,
+        // ros::Time& stamp, Matrix4d& w_T_c,
+        cv::Mat& left_image
+    )
+    {
+        cout << TermColor::GREEN() << "[retrive_image_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
 
+            int64_t t_sec = data_node["stampNSec"];
+            ros::Time stamp = ros::Time().fromNSec( t_sec );
+
+
+            // if wTc and image do not exist then return
+            if( data_node["isPoseAvailable"] == false || data_node["isKeyFrame"] == false ) {
+                cout << "\tno pose or image data...return false\n";
+                return false;
+            }
+
+
+            // odom pose
+            // Matrix4d w_T_c;
+            // string _tmp = data_node["w_T_c"];
+            // bool status = RawFileIO::read_eigen_matrix4d_fromjson(  data_node["w_T_c"], w_T_c  );
+            // assert( status );
+
+
+            string imleft_fname = base_path+"/cerebro_stash/left_image__" + std::to_string(stamp.toNSec()) + ".jpg";
+            cout << "\tload imleft_fname: " << imleft_fname << endl;
+            left_image = cv::imread( imleft_fname, 0 );
+            if( !left_image.data ) {
+                cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load image...return false\n" << TermColor::RESET();
+                return false;
+            }
+            cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl;
+            return true;
+
+    }
 
     bool retrive_data_from_json_datanode( json data_node,
         ros::Time& stamp, Matrix4d& w_T_c,
@@ -221,7 +256,7 @@ public:
                 return false;
             }
             cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl;
-            depth_map = depth_image; 
+            depth_map = depth_image;
             #if 0
             depth_image.convertTo( depth_map, CV_32FC1 , 1.0/1000. );
 

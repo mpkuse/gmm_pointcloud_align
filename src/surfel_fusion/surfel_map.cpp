@@ -76,7 +76,7 @@ inactive_pointcloud(new PointCloud)
 // Constructor by mpkuse (SANS ros)
 SurfelMap::SurfelMap(bool flag): inactive_pointcloud(new PointCloud)
 {
-    //TODO: Better pass it the params.
+    //TODO: Better pass it the params. (or pass the camodocal struct)
 
     // realsense camera.
     cam_width  = 640;
@@ -94,7 +94,7 @@ SurfelMap::SurfelMap(bool flag): inactive_pointcloud(new PointCloud)
     camera_matrix(1, 2) = cam_cy;
     camera_matrix(2, 2) = 1.0;
 
-    far_dist = 3.0;
+    far_dist = 6.0;
     near_dist = 0.5;
     drift_free_poses= 100; //    <!-- for deform the map -->
     fusion_functions.initialize(cam_width, cam_height, cam_fx, cam_fy, cam_cx, cam_cy, far_dist, near_dist);
@@ -229,6 +229,10 @@ Eigen::MatrixXd SurfelMap::get_surfel_positions() const // return 4XN matrix
         for(int j = 0; j < poses_database[i].attached_surfels.size(); j++)
         {
             SurfelElement this_surfel = poses_database[i].attached_surfels[j];
+            if(this_surfel.update_times < 5)
+                continue;
+            if( std::isnan(this_surfel.px) || std::isnan(this_surfel.py) || std::isnan(this_surfel.pz) )
+                continue;
             w_X( 0, c ) = this_surfel.px;
             w_X( 1, c ) = this_surfel.py;
             w_X( 2, c ) = this_surfel.pz;
@@ -242,6 +246,8 @@ Eigen::MatrixXd SurfelMap::get_surfel_positions() const // return 4XN matrix
         if(local_surfels[i].update_times < 5)
             continue;
         SurfelElement this_surfel = local_surfels[i];
+        if( std::isnan(this_surfel.px) || std::isnan(this_surfel.py) || std::isnan(this_surfel.pz) )
+            continue;
         w_X( 0, c ) = this_surfel.px;
         w_X( 1, c ) = this_surfel.py;
         w_X( 2, c ) = this_surfel.pz;
@@ -249,7 +255,7 @@ Eigen::MatrixXd SurfelMap::get_surfel_positions() const // return 4XN matrix
         c++;
     }
     cout << "[get_surfel_positions] n=" << n << "   number of 3d points=" << c << endl;
-    return w_X;
+    return w_X.leftCols(c);
 }
 
 Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
@@ -263,6 +269,10 @@ Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
         for(int j = 0; j < poses_database[i].attached_surfels.size(); j++)
         {
             SurfelElement this_surfel = poses_database[i].attached_surfels[j];
+            if(this_surfel.update_times < 5)
+                continue;
+            if( std::isnan(this_surfel.nx) || std::isnan(this_surfel.ny) || std::isnan(this_surfel.nz) )
+                continue;
             normals( 0, c ) = this_surfel.nx;
             normals( 1, c ) = this_surfel.ny;
             normals( 2, c ) = this_surfel.nz;
@@ -270,9 +280,12 @@ Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
         }
     }
 
+
     for(int i = 0; i < local_surfels.size(); i++)
     {
         if(local_surfels[i].update_times < 5)
+            continue;
+        if( std::isnan(local_surfels[i].nx) || std::isnan(local_surfels[i].ny) || std::isnan(local_surfels[i].nz) )
             continue;
         SurfelElement this_surfel = local_surfels[i];
         normals( 0, c ) = this_surfel.nx;
@@ -283,6 +296,41 @@ Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
     cout << "[get_surfel_normals] n=" << n << "   number of normals=" << c << endl;
     return normals;
 }
+
+
+void SurfelMap::print_persurfel_info() const //prints detailed info of this surfel_map
+{
+    cout << TermColor::iGREEN() << "===  SurfelMap::print_persurfel_info() ===\n" << TermColor::RESET();
+    cout << " poses_database.size() = " <<  poses_database.size() << "\n";
+
+    for(int i = 0; i < poses_database.size(); i++)
+    {
+        cout << TermColor::GREEN() << "poses_database#" << i << " has attached_surfels=" <<  poses_database[i].attached_surfels.size() << TermColor::RESET() << std::endl;
+        for(int j = 0; j < poses_database[i].attached_surfels.size(); j++)
+        {
+            SurfelElement this_surfel = poses_database[i].attached_surfels[j];
+            if( this_surfel.update_times < 5 )
+                continue;
+
+            cout << "\tpose#" << i << " attached_surf#" << j << "\t";
+            cout << "update_times=" << this_surfel.update_times << "\t";
+            #if 1
+            for( int k=0 ; k< this_surfel.updates_frameid.size() ; k++ ) {
+                cout<< "{" << this_surfel.updates_frameid[k] << ",";
+                cout<< int(this_surfel.updates_imx[k]) << ",";
+                cout<< int(this_surfel.updates_imy[k]) << "}\t";
+            }
+            #endif
+            cout << endl;
+        }
+    }
+
+
+}
+
+
+
+//------------- END Kuse Outputs --------------------//
 
 void SurfelMap::synchronize_msgs()
 {
@@ -1321,6 +1369,15 @@ void SurfelMap::move_add_surfels(int reference_index)
     vector<int> poses_to_add;
     vector<int> poses_to_remove;
     get_add_remove_poses(reference_index, poses_to_add, poses_to_remove);
+
+    #if 0
+    std::cout << "the current index: " << reference_index << std::endl;
+    std::cout << "poses_to_add: " << std::endl;
+    for(int i = 0; i< poses_to_add.size(); i++)
+    {
+        std::cout << poses_to_add[i] << std::endl;
+    }
+    #endif
     std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
     std::chrono::duration<double> move_pointcloud_time;
 

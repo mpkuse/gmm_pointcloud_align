@@ -30,6 +30,14 @@ struct SurfelElement
     float weight;
     int update_times;
     int last_update;
+
+    // added by mpkuse
+    // Which frames and which pixels were used to construct this Surfel elements
+    std::vector<int> updates_frameid;
+    std::vector<float> updates_imx;
+    std::vector<float> updates_imy;
+    
+
 };
 
 

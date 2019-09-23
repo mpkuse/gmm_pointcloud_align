@@ -16,7 +16,7 @@
 
 - Evangelidis et al. "A generative model for the joint registrationof multiple point sets" ECCV2014
 - Horaud et al. "Rigid and articulated point registration with expectation con-ditional maximization" TPAMI2011
-
+- Straub et al "Efficient Global Point Cloud Alignment using Bayesian Nonparametric Mixtures" CVPR2017
 
 ## Surfel Mapping
 - SLIC
@@ -29,9 +29,12 @@
 - Zhou, Koltun et al "Fast global registration" ECCV16
 - choi, Koltun et al. "Robust Reconstruction of Indoor Scenes" CVPR2015
 - Pomerleau, Siegwart et al "Comparing icp variants onreal-world data sets" AURO2013
-- Yang et al "Go-icp: a globally optimal solution to 3dicp point-set registration" PAMI2016
+- Yang et al "Go-icp: a globally optimal solution to 3dicp point-set registration" TPAMI2016
 - Briagles et al. " Convex global 3d registration with lagrangianduality." CVPR2017
-- OpenGR: A C++ library for 3D Global Registration, 2017 
+- OpenGR: A C++ library for 3D Global Registration, 2017
+- Yue Pan et al. "GH-ICP：Iterative Closest Point algorithm with global optimal matching and hybrid metric" 3DV2018
+- A  Comparison  of Four  Algorithms  forEstimating  3-D Rigid  Transformations, BMVC1995 (closed form 3d align SVD, 4 algos compared, especially see section 2.1)
+- Park, Q.-Y. Zhou, and V. Koltun, Colored Point Cloud Registration Revisited, ICCV, 2017.
 
 ## Pointcloud datasets
 -  ICL-NUIM dataset.: A Benchmark for {RGB-D} Visual Odometry, {3D} Reconstruction and {SLAM} ICRA2014

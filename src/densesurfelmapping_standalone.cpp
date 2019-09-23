@@ -75,6 +75,19 @@ bool densesurfelfusion( json data_node )
 
     MatrixXd _w_X = surfel_map.get_surfel_positions();
     cout << "_w_X : " << _w_X.rows() << "x" << _w_X.cols() << endl;
+    // loop to see if there are NANs
+    int has_nan=0;
+    for( int i=0 ; i<_w_X.cols() ; i++ )
+    {
+        if( std::isnan(_w_X.col(i).sum()) || std::isinf(_w_X.col(i).sum()) )
+        {
+            cout << "WARN found Nan or Inf at col#" << i << endl;
+            has_nan++;
+            continue;
+        }
+    }
+    cout << "found nan for " << has_nan << " out of total " << _w_X.cols() << endl;
+
     return true;
 }
 

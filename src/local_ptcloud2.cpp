@@ -49,7 +49,41 @@ using json = nlohmann::json;
 
 #include <theia/theia.h>
 
+void write_to_disk_for_goicp( MatrixXd& __p , const string goicp_fname )
+{
+    cout << TermColor::iGREEN() << "===  write_to_disk_for_goicp() ===\n" << TermColor::RESET();
 
+    VectorXd m = __p.rowwise().mean();
+
+    VectorXd mx = __p.rowwise().maxCoeff();
+    VectorXd mn = __p.rowwise().minCoeff();
+    cout << "mean : " << m.transpose() << endl;
+    cout << "mx   : " << mx.transpose() << endl;
+    cout << "mn   : " << mn.transpose() << endl;
+    assert( m(3) == 1.0 );
+    m(3) = 0.0;
+
+
+    cout << "p(before):\n" << __p.leftCols(5) << endl;
+    for( int i=0 ; i<__p.cols() ; i++ )
+    {
+        __p(0,i) = (   (__p(0,i) - mn(0)) / (mx(0) - mn(0)) )*2.0 - 1.0;
+        __p(1,i) = (   (__p(1,i) - mn(1)) / (mx(1) - mn(1)) )*2.0 - 1.0;
+        __p(2,i) = (   (__p(2,i) - mn(2)) / (mx(2) - mn(2)) )*2.0 - 1.0;
+    }
+    cout << "p(after):\n" << __p.leftCols(5) << endl;
+
+
+    ofstream myfile;
+    cout << "Open File: " << goicp_fname << endl;
+    myfile.open (goicp_fname);
+    myfile << __p.cols() << endl;
+    for( int i=0 ; i<__p.cols() ; i++ )
+    {
+        myfile << __p(0,i) << " " << __p(1,i) << " " << __p(2,i) << " " << endl;
+    }
+    myfile.close();
+}
 
 // my version of surfel fusion
 bool process_this_datanode( XLoader& xloader, json data_node,
@@ -248,6 +282,15 @@ void print_processingseries_status( const map<  int,  vector<int>   > & all_i, c
         msg += to_string(   *(it->second.rbegin()) );
         msg += "   nitems=" + to_string( it->second.size() );
         msg += ";";
+
+        #if 1
+        cout << TermColor::YELLOW();
+        cout << "series#" << to_string( it->first ) << "\t";
+        cout << *(it->second.begin())  << "--->" << *(it->second.rbegin()) << "\t";
+        cout << "nitems=" << it->second.size() ;
+        cout << endl;
+        cout << TermColor::RESET();
+        #endif
     }
     MiscUtils::append_status_image( status, msg, .6, cv::Scalar(0,0,0), cv::Scalar(0,255,0) );
 
@@ -337,7 +380,7 @@ int main( int argc, char ** argv )
     map<  int,  vector<Matrix4d>    > all_odom_poses;
     map<  int,  vector<MatrixXd>    > all_sp_cX;
 
-    map< int, SurfelXMap* > vec_map;
+    // map< int, SurfelXMap* > vec_map;
     map< int, SurfelMap* > vec_surf_map;
 
     // inf loop
@@ -422,7 +465,7 @@ int main( int argc, char ** argv )
             }
             assert( seriesI >= 0 && seriesI<idx_ptr.size() && "You choose to process a series for which the pointer doesnopt exist. The correct way is to press n to start a new pointer and then go by processing it\n" );
 
-            cout << TermColor::BLUE() << "Q PRESSED, PROCESS\n";
+            cout << TermColor::BLUE() << "``" << ch << "`` PRESSED, PROCESS\n";
             json data_node = STATE["DataNodes"][idx_ptr[seriesI]];
 
             //--- Retrive data
@@ -469,7 +512,7 @@ int main( int argc, char ** argv )
             MatrixXd _w_X = vec_surf_map[ seriesI ]->get_surfel_positions();
             cout << "_w_X : " << _w_X.rows() << "x" << _w_X.cols() << endl;
 
-            MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * _w_X;
+            MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * _w_X; // 3d points in this series's 1st camera ref frame
             // cout << "__p\n" << __p << endl;
 
 
@@ -483,7 +526,7 @@ int main( int argc, char ** argv )
             cv::Scalar color = FalseColors::randomColor(seriesI);
             #if 1 // fixed color regime
             RosPublishUtils::publish_3d( marker_pub, __p,
-                "surfels"+to_string(vec_surf_map.size()), 0,
+                "surfels"+to_string(vec_surf_map.size()-1), 0,
                 float(color[2]), float(color[1]), float(color[0]), float(1.0), 1.5 );
             #else
             RosPublishUtils::publish_3d( marker_pub, __p,
@@ -509,14 +552,47 @@ int main( int argc, char ** argv )
             cout << TermColor::iGREEN() << "Showing results, press <space> to continue\n" << TermColor::RESET();
             ros::spinOnce();
             cv::waitKey(0);
-            idx_ptr[seriesI]++; //move the pointer ahead by 1
+            // idx_ptr[seriesI]++; //move the pointer ahead by 1
+            idx_ptr[seriesI]+=5;
 
 
             #endif
 
+        } // end if( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' )
+
+
+        if( ch == '1' ) // basic ICP on surfelmap[0] and surfelmap[1]
+        {
+            cout << TermColor::BLUE() << "1 pressed PROCESS" << TermColor::RESET() << endl;
+
+            cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
+            cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
+
+            int _0s = *(all_i[0].begin());
+            int _0e = *(all_i[0].rbegin());
+
+            int _1s = *(all_i[1].begin());
+            int _1e = *(all_i[1].rbegin());
+
+            json _0_data_node = STATE["DataNodes"][_0s];
+            cv::Mat _0_image;
+            bool status = xloader.retrive_image_data_from_json_datanode( _0_data_node, _0_image );
+            assert( status );
+
+            json _1_data_node = STATE["DataNodes"][_1s];
+            cv::Mat _1_image;
+            status = xloader.retrive_image_data_from_json_datanode( _1_data_node, _1_image );
+            assert( status );
+
+            cout << TermColor::GREEN() << "Showing the 1st image of both seq\n. Press any key to continue\n"<< TermColor::RESET();
+            cv::imshow( "_0s", _0_image );
+            cv::imshow( "_1s", _1_image );
+            cv::waitKey(0);
+
         }
 
-        // process the idx_ptr
+        #if 0 // make this to 1 to use mpkuse's mapping implementation. not recommended
+        // process the idx_ptr - mpkuse surfel mapping implementation - bad
         if( false && ( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) )
         {
             int seriesI = 0;
@@ -620,7 +696,7 @@ int main( int argc, char ** argv )
 
 
         // various alignment methods
-        if( ch == '1' ) {
+        if( false && ch == '1' ) {
             // ICP, on map0, map1
             assert( vec_map.size() >= 2 && "You requsted ICP computation, however it needs atleast 2 surfel maps");
 
@@ -652,7 +728,7 @@ int main( int argc, char ** argv )
             Vector3d ____t = Vector3d::Zero(); double ___s=1.0;
             theia::AlignPointCloudsUmeyama( a_X, b_X, &____R, &____t, &___s );
         }
-
+        #endif
     } //while(ros::ok())
 
 
@@ -663,7 +739,18 @@ int main( int argc, char ** argv )
     {
         string mesh_fname = xloader.base_path+"/mesh_"+ to_string(it->first) + ".ply";
         cout << "save vec_surf_map with key=" << it->first << " to file: " << mesh_fname << endl;
+
         it->second->save_mesh( mesh_fname );
+
+        // it->second->print_persurfel_info();
+
+
+        MatrixXd _w_X = it->second->get_surfel_positions();
+        cout << "_w_X : " << _w_X.rows() << "x" << _w_X.cols() << endl;
+        MatrixXd __p = all_odom_poses[ it->first ][0].inverse() * _w_X; // 3d points in this series's 1st camera ref frame
+
+        string goicp_fname = xloader.base_path + "/ptcld_goicp_" + to_string( it->first ) + ".txt";
+        write_to_disk_for_goicp( __p, goicp_fname );
     }
 
 }
