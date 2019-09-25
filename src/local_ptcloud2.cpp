@@ -36,6 +36,7 @@ using json = nlohmann::json;
 #include "SurfelMap.h"
 #include "SlicClustering.h"
 #include "utils/CameraGeometry.h"
+#include "utils/PointFeatureMatching.h"
 
 //
 #include "utils/RosMarkerUtils.h"
@@ -329,6 +330,81 @@ void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& sta
 
 }
 
+// Given the json state, and the index of 2 images , gives the image correspondences
+// and the 3d points of those correspondences
+//      STATE: The loaded json file (can be obtained from checkpoint of cerebro)
+//      idx0, idx1 : Index0, Index1. These indices will be looked up from STATE.
+//      uv_a, uv_b [Output] : 2d point. xy (ie. col, row) in image plane. 3xN
+//      aX, bX     [Output] : 3d points of uv_a, uv_b (respectively) expressed in co-ordinates of the camera. 4xN
+bool image_correspondences( const json& STATE, XLoader& xloader,
+    int idx_a, int idx_b,
+    MatrixXd& uv_a, MatrixXd& uv_b,
+    MatrixXd& aX, MatrixXd& bX, vector<bool>& valids )
+{
+    // -- Retrive Image Data
+    json data_node_a = STATE["DataNodes"][idx_a];
+    cv::Mat image_a, depth_a;
+    bool status = xloader.retrive_image_data_from_json_datanode( data_node_a, image_a, depth_a );
+
+    json data_node_b = STATE["DataNodes"][idx_b];
+    cv::Mat image_b, depth_b;
+    status = xloader.retrive_image_data_from_json_datanode( data_node_b, image_b, depth_b );
+
+
+    // cout << TermColor::GREEN() << "=== Showing the 1st image of both seq. Press any key to continue\n"<< TermColor::RESET();
+    // cv::imshow( "image_a", image_a );
+    // cv::imshow( "image_b", image_b );
+
+
+    // -- GMS Matcher
+    cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+    StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
+    cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
+    cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
+
+    if( uv_a.cols() < 50 ) {
+        cout << TermColor::YELLOW() << "\nGMSMatcher produced fewer than 50 point matches, return false\n" << TermColor::RESET();
+        return false;
+    }
+
+    cv::Mat dst_gmsmatcher;
+    MiscUtils::plot_point_pair( image_a, uv_a, idx_a,
+                                image_b, uv_b, idx_b, dst_gmsmatcher, 3, "gms plot (resize 0.5)" );
+    cv::resize(dst_gmsmatcher, dst_gmsmatcher, cv::Size(), 0.5, 0.5);
+    cv::imshow( "GMSMatcher", dst_gmsmatcher );
+
+
+    // -- 3D Points from depth image at the correspondences
+    // vector<bool> valids;
+    StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_depthimage(
+        xloader.left_camera,
+        uv_a, depth_a, uv_b, depth_b,
+        aX, bX, valids
+    );
+
+    int nvalids = 0;
+    for( int i=0 ; i<valids.size() ; i++ )
+        if( valids[i]  == true )
+            nvalids++;
+    cout << "nvalids=" << nvalids << " of total=" << valids.size() << "\t";
+
+    cout << "aX: " << aX.rows() << "x" << aX.cols() << "\t";
+    cout << "bX: " << bX.rows() << "x" << bX.cols() << endl;
+
+    if( nvalids < 50 ) {
+        cout << TermColor::YELLOW() << "GMSMatcher produced fewer than 50 valid (points where good depth value) point matches, return false\n" << TermColor::RESET();
+        return false;
+    }
+    return true;
+
+
+}
+
+int random_in_range( int start, int end )
+{
+    return ( rand() % (end-start) ) + start;
+}
+
 
 void print_usage( cv::Mat& status )
 {
@@ -515,7 +591,7 @@ int main( int argc, char ** argv )
             MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * _w_X; // 3d points in this series's 1st camera ref frame
             // cout << "__p\n" << __p << endl;
 
-
+             vec_surf_map[ seriesI ]->print_persurfel_info( 1 );
 
             //------------ END Wang Kaixuan's Dense Surfel Mapping -------------------//
 
@@ -552,8 +628,8 @@ int main( int argc, char ** argv )
             cout << TermColor::iGREEN() << "Showing results, press <space> to continue\n" << TermColor::RESET();
             ros::spinOnce();
             cv::waitKey(0);
-            // idx_ptr[seriesI]++; //move the pointer ahead by 1
-            idx_ptr[seriesI]+=5;
+            idx_ptr[seriesI]++; //move the pointer ahead by 1
+            // idx_ptr[seriesI]+=5;
 
 
             #endif
@@ -574,23 +650,71 @@ int main( int argc, char ** argv )
             int _1s = *(all_i[1].begin());
             int _1e = *(all_i[1].rbegin());
 
-            json _0_data_node = STATE["DataNodes"][_0s];
-            cv::Mat _0_image;
-            bool status = xloader.retrive_image_data_from_json_datanode( _0_data_node, _0_image );
-            assert( status );
+            for( int k=0 ; k< 5 ; k++ )
+            while( true )
+            {
+                int _a = random_in_range( 0, (int)all_i[0].size() );
+                int _b = random_in_range( 0, (int)all_i[1].size() );
 
-            json _1_data_node = STATE["DataNodes"][_1s];
-            cv::Mat _1_image;
-            status = xloader.retrive_image_data_from_json_datanode( _1_data_node, _1_image );
-            assert( status );
+                int idx_a = all_i[0][_a];
+                int idx_b = all_i[1][_b];
 
-            cout << TermColor::GREEN() << "Showing the 1st image of both seq\n. Press any key to continue\n"<< TermColor::RESET();
-            cv::imshow( "_0s", _0_image );
-            cv::imshow( "_1s", _1_image );
-            cv::waitKey(0);
+
+                // --- Image correspondences and 3d points from depth images
+                MatrixXd uv_a, uv_b, aX, bX;
+                vector<bool> valids;
+                bool status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, aX, bX, valids );
+
+                if( status == false ) {
+                    cout << TermColor::RED() << "image_correspondences returned false, skip this sample\n" << TermColor::RESET();
+                    continue;
+                }
+
+
+
+                // --- Change co-ordinate system of aX and bX
+                Matrix4d wTa;
+                wTa = all_odom_poses[0][_a];
+                assert( status );
+
+
+                Matrix4d wTb;
+                wTb = all_odom_poses[1][_b];
+                assert( status );
+
+
+                //3d points espressed in 0th camera of the sequence
+                MatrixXd sa_c0_X = (all_odom_poses[0][0].inverse() * wTa) * aX;
+                MatrixXd sb_c0_X = (all_odom_poses[1][0].inverse() * wTb) * bX;
+
+
+                // --- Viz
+                visualization_msgs::Marker l_mark;
+                RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
+                l_mark.scale.x *= 0.5;
+                l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b);
+                marker_pub.publish( l_mark );
+
+
+                // --- Wait Key
+                cout << "press b to break, press any other key to keep drawing more pairs\n";
+                char ch = cv::waitKey(0) & 0xEFFFFF;
+                if( ch == 'b' )
+                    break;
+            }
+            cv::destroyWindow("GMSMatcher");
 
         }
 
+
+        if( ch == '2' ) // visualization for normals of a point cloud
+        {
+            assert( vec_surf_map.size() > 0 );
+            cout << TermColor::GREEN() << "==== Viz Normals ====\n" << TermColor::RESET();
+            MatrixXd wX = vec_surf_map[ 0 ]->get_surfel_positions();
+            MatrixXd normals = vec_surf_map[ 0 ]->get_surfel_normals();
+
+        }
         #if 0 // make this to 1 to use mpkuse's mapping implementation. not recommended
         // process the idx_ptr - mpkuse surfel mapping implementation - bad
         if( false && ( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) )

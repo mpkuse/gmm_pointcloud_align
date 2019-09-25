@@ -70,7 +70,7 @@ public:
     Eigen::MatrixXd get_surfel_positions() const; // return 4XN matrix
     Eigen::MatrixXd get_surfel_normals() const; // return 4XN matrix
 
-    void print_persurfel_info() const; //prints detailed info of this surfel_map
+    void print_persurfel_info( int debug_lvl=5 ) const; //prints detailed info of this surfel_map
 
 
 

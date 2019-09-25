@@ -298,7 +298,7 @@ Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
 }
 
 
-void SurfelMap::print_persurfel_info() const //prints detailed info of this surfel_map
+void SurfelMap::print_persurfel_info( int debug_lvl ) const //prints detailed info of this surfel_map
 {
     cout << TermColor::iGREEN() << "===  SurfelMap::print_persurfel_info() ===\n" << TermColor::RESET();
     cout << " poses_database.size() = " <<  poses_database.size() << "\n";
@@ -306,6 +306,7 @@ void SurfelMap::print_persurfel_info() const //prints detailed info of this surf
     for(int i = 0; i < poses_database.size(); i++)
     {
         cout << TermColor::GREEN() << "poses_database#" << i << " has attached_surfels=" <<  poses_database[i].attached_surfels.size() << TermColor::RESET() << std::endl;
+        if( debug_lvl >= 3 ) {
         for(int j = 0; j < poses_database[i].attached_surfels.size(); j++)
         {
             SurfelElement this_surfel = poses_database[i].attached_surfels[j];
@@ -314,14 +315,15 @@ void SurfelMap::print_persurfel_info() const //prints detailed info of this surf
 
             cout << "\tpose#" << i << " attached_surf#" << j << "\t";
             cout << "update_times=" << this_surfel.update_times << "\t";
-            #if 1
+            if( debug_lvl >=  5 ) {
             for( int k=0 ; k< this_surfel.updates_frameid.size() ; k++ ) {
                 cout<< "{" << this_surfel.updates_frameid[k] << ",";
                 cout<< int(this_surfel.updates_imx[k]) << ",";
-                cout<< int(this_surfel.updates_imy[k]) << "}\t";
+                cout<< int(this_surfel.updates_imy[k]) << "}:";
             }
-            #endif
+            }
             cout << endl;
+        }
         }
     }
 

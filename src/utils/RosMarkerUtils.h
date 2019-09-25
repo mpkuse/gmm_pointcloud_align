@@ -49,6 +49,7 @@ public:
     static void init_line_strip_marker( visualization_msgs::Marker &marker );
     static void init_line_marker( visualization_msgs::Marker &marker );
     static void init_line_marker( visualization_msgs::Marker &marker, const Vector3d& p1, const Vector3d& p2 );
+    static void init_line_marker( visualization_msgs::Marker &marker, const MatrixXd& p1, const MatrixXd& p2, const vector<bool>& valids );
     static void init_points_marker( visualization_msgs::Marker &marker );
 
     static void init_mesh_marker( visualization_msgs::Marker &marker );

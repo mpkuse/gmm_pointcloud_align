@@ -487,6 +487,59 @@ void RosMarkerUtils::init_line_marker( visualization_msgs::Marker &marker, const
 }
 
 
+
+void RosMarkerUtils::init_line_marker( visualization_msgs::Marker &marker,
+    const MatrixXd& p1, const MatrixXd& p2,
+    const vector<bool>& valids )
+{
+    assert( p1.rows() == 3 || p1.rows() ==4 );
+    assert( p1.rows() == p2.rows() );
+    assert( p1.cols() == p2.cols() );
+
+    bool selective = false;
+    if( valids.size() == p1.cols() )
+        selective = true;
+
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.color.a = .8; // Don't forget to set the alpha!
+    marker.type = visualization_msgs::Marker::LINE_LIST;
+
+    marker.scale.x = 0.02;
+
+    marker.points.clear();
+
+    for( int i=0 ; i<p1.cols() ; i++ )
+    {
+        if( selective && valids[i]==false )
+            continue;
+        geometry_msgs::Point pt;
+        pt.x = p1(0,i);
+        pt.y = p1(1,i);
+        pt.z = p1(2,i);
+        marker.points.push_back( pt );
+        pt.x = p2(0,i);
+        pt.y = p2(1,i);
+        pt.z = p2(2,i);
+        marker.points.push_back( pt );
+    }
+
+    //// Done . no need to edit firther
+    marker.pose.position.x = 0.;
+    marker.pose.position.y = 0.;
+    marker.pose.position.z = 0.;
+    marker.pose.orientation.x = 0.;
+    marker.pose.orientation.y = 0.;
+    marker.pose.orientation.z = 0.;
+    marker.pose.orientation.w = 1.;
+    // marker.id = i;
+    // marker.ns = "camerapose_visual";
+    marker.color.r = .9;marker.color.b = 0.2;marker.color.g = 0.8;
+
+}
+
+
 void RosMarkerUtils::init_points_marker( visualization_msgs::Marker &marker )
 {
     marker.header.frame_id = "world";

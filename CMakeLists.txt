@@ -167,6 +167,8 @@ FILE( GLOB KuseUtils
     src/utils/RawFileIO.cpp
     src/utils/MiscUtils.cpp
     src/utils/CameraGeometry.cpp
+    src/utils/PointFeatureMatching.cpp
+    src/utils/GMSMatcher/gms_matcher.cpp
 )
 
 FILE( GLOB KaixuanUtils

@@ -93,4 +93,9 @@ public:
         Eigen::Matrix4f &pose,
         std::vector<SurfelElement> &local_surfels,
         std::vector<SurfelElement> &new_surfels);
+
+
+// mpkuse - inverted index. Given as input the frame# and uv will return the surfel corresponding to that
+// std::map< int , map< std::pair<int,int>,   std::pair<int, int>  > > FGT;
+//        ^^^frame_id         ^^^^ u,v              ^^^ poseID, attached_surfelID
 };
