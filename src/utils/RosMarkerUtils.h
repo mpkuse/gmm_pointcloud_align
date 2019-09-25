@@ -102,4 +102,8 @@ public:
         int colorcode_by_dim, double min_val, double max_val,
         int size_multiplier=1.0 );
 
+
+    static void publish_3d( ros::Publisher& pub, MatrixXd& _3dpts, string ns, int id,
+        vector< cv::Scalar > per_pt_color, 
+        int size_multiplier=1.0 );
 };

@@ -168,6 +168,7 @@ public:
         cv::applyColorMap(colormap_gray, colormap_color, cv::COLORMAP_JET	);
     }
 
+    // f need to be between 0 and 1
     cv::Scalar getFalseColor( float f ) {
         int idx = (int) (f*255.);
         if( f<0 ) {

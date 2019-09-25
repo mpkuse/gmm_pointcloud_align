@@ -712,9 +712,44 @@ int main( int argc, char ** argv )
             assert( vec_surf_map.size() > 0 );
             cout << TermColor::GREEN() << "==== Viz Normals ====\n" << TermColor::RESET();
             MatrixXd wX = vec_surf_map[ 0 ]->get_surfel_positions();
+            MatrixXd __p = all_odom_poses[ 0 ][0].inverse() * wX;
             MatrixXd normals = vec_surf_map[ 0 ]->get_surfel_normals();
 
+            vector<cv::Scalar> ddddd;
+            FalseColors fp;
+            ddddd.clear();
+            for( int i=0 ; i<normals.cols() ; i++ ) //make colors for each normal's direction
+            {
+                // follow calculation for RGB-->Hue
+                double _R = normals(0,i), _G = normals(1,i), _B = normals(2,i);
+                double hue = 0;
+                if( _R >= _G && _R >= _B ) {
+                    hue = (_G - _B) / ( _R - min(_G,_B) );
+                }
+
+                if( _G >= _R && _G >= _B ) {
+                    hue = 2.0 + ( _B - _R ) / ( _G - min(_R,_B) );
+                }
+
+                if( _B >= _R && _B >= _G ) {
+                    hue = 4.0 + (_R - _G) / ( _B - min(_R,_G));
+                }
+                hue *= 60;
+                if( hue < 0 )
+                    hue += 360;
+
+                if( std::isnan( hue ) )
+                    hue = 0;
+                // cout << "i=" << i << " hue=" << hue << endl;
+                ddddd.push_back( fp.getFalseColor( hue / 360. ) );
+            }
+
+            cout << "dddd.size() = " << ddddd.size() << endl;
+            RosPublishUtils::publish_3d( marker_pub, __p, "normals0", 0, ddddd );
+
         }
+
+
         #if 0 // make this to 1 to use mpkuse's mapping implementation. not recommended
         // process the idx_ptr - mpkuse surfel mapping implementation - bad
         if( false && ( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) )

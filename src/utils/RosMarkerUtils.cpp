@@ -741,3 +741,31 @@ void RosPublishUtils::publish_3d( ros::Publisher& pub, MatrixXd& _3dpts,
 
     pub.publish( local_3dpt );
 }
+
+
+
+void RosPublishUtils::publish_3d( ros::Publisher& pub, MatrixXd& _3dpts, string ns, int id,
+    vector< cv::Scalar > per_pt_color,
+    int size_multiplier )
+{
+    assert( size_multiplier > 0 );
+    assert( _3dpts.cols() == per_pt_color.size() );
+
+    visualization_msgs::Marker local_3dpt;
+    RosMarkerUtils::init_points_marker( local_3dpt );
+    local_3dpt.ns = ns;
+    local_3dpt.id = id;
+    local_3dpt.scale.x = 0.02*size_multiplier;
+    local_3dpt.scale.y = 0.02*size_multiplier;
+
+    RosMarkerUtils::add_points_to_marker( _3dpts, local_3dpt, true );
+    // RosMarkerUtils::setcolor_to_marker( red/255., green/255., blue/255., alpha, local_3dpt );
+
+    for( int i=0 ; i<_3dpts.cols() ; i++ ) //loop over all the 3d points to determine the color
+    {
+        auto col = per_pt_color[i];
+        RosMarkerUtils::add_colors_to_marker(  col[2]/255., col[1]/255., col[0]/255., local_3dpt, (i==0)?true:false );
+    }
+
+    pub.publish( local_3dpt );
+}

@@ -294,7 +294,7 @@ Eigen::MatrixXd SurfelMap::get_surfel_normals() const // return 4XN matrix
         c++;
     }
     cout << "[get_surfel_normals] n=" << n << "   number of normals=" << c << endl;
-    return normals;
+    return normals.leftCols(c);
 }
 
 
