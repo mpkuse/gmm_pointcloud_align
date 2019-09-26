@@ -244,9 +244,10 @@ add_executable( local_ptcloud
         src/local_ptcloud2.cpp
         ${CamodocalCameraModelSources}
         ${KuseUtils}
-        src/SlicClustering.cpp
-        src/SurfelMap.cpp
+        #src/SlicClustering.cpp
+        #src/SurfelMap.cpp
         ${KaixuanUtils}
+        src/PoseComputation.cpp
         )
 
     add_executable( densesurfelmapping_standalone
@@ -274,6 +275,12 @@ add_executable( mean_of_vector_using_hubernorm
 #add_executable( test_nanoflann
 #        src/test_nanoflann.cpp
 #        )
+
+add_executable( test_posecomputation
+    src/test_posecomputation.cpp
+    ${KuseUtils}
+    src/PoseComputation.cpp
+    )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -352,6 +359,11 @@ target_link_libraries( test_objloader
 #         ${OpenCV_LIBS}
 #       )
 
+
+target_link_libraries( test_posecomputation
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+ )
 
 #############
 ## Install ##

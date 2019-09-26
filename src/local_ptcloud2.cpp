@@ -33,10 +33,12 @@ using namespace Eigen;
 using json = nlohmann::json;
 
 // KuseUtils
-#include "SurfelMap.h"
-#include "SlicClustering.h"
+//#include "SurfelMap.h"
+//#include "SlicClustering.h"
 #include "utils/CameraGeometry.h"
 #include "utils/PointFeatureMatching.h"
+
+#include "PoseComputation.h"
 
 //
 #include "utils/RosMarkerUtils.h"
@@ -86,6 +88,7 @@ void write_to_disk_for_goicp( MatrixXd& __p , const string goicp_fname )
     myfile.close();
 }
 
+#if 0
 // my version of surfel fusion
 bool process_this_datanode( XLoader& xloader, json data_node,
     Matrix4d& toret__wTc, MatrixXd& toret__cX, MatrixXd& toret__uv,
@@ -174,7 +177,7 @@ bool process_this_datanode( XLoader& xloader, json data_node,
     return true;
 
 }
-
+#endif
 
 bool process_key_press( char ch, vector<int>& idx_ptr )
 {
@@ -299,6 +302,7 @@ void print_processingseries_status( const map<  int,  vector<int>   > & all_i, c
 }
 
 
+#if 0
 void print_surfelmaps_status( const map< int, SurfelXMap* > vec_map, cv::Mat& status )
 {
     string msg = "#SurfelMaps=" + to_string( vec_map.size() ) + ";";
@@ -313,6 +317,7 @@ void print_surfelmaps_status( const map< int, SurfelXMap* > vec_map, cv::Mat& st
     MiscUtils::append_status_image( status, msg, .6, cv::Scalar(0,0,0), cv::Scalar(0,255,0) );
 
 }
+#endif
 
 
 void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& status )
@@ -413,6 +418,8 @@ void print_usage( cv::Mat& status )
     msg += "z,x,c,v....: step by 10, the the idx_ptr;";
     msg += "q,w,e,r.....: Process the series;";
     msg += "n: fork new idx_ptr, m: new idx_ptr from 0;";
+    msg += "1:Draw random image pair, map point feature to surfels;";
+    msg += "2:viz 3d model normals;";
     msg += "ESC: quit;";
     MiscUtils::append_status_image( status, msg, .45, cv::Scalar(0,0,0), cv::Scalar(255,255,255) );
 
@@ -640,17 +647,14 @@ int main( int argc, char ** argv )
         if( ch == '1' ) // basic ICP on surfelmap[0] and surfelmap[1]
         {
             cout << TermColor::BLUE() << "1 pressed PROCESS" << TermColor::RESET() << endl;
-
+            assert( all_i.size() >= 2 );
             cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
             cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
 
-            int _0s = *(all_i[0].begin());
-            int _0e = *(all_i[0].rbegin());
 
-            int _1s = *(all_i[1].begin());
-            int _1e = *(all_i[1].rbegin());
-
-            for( int k=0 ; k< 5 ; k++ )
+            vector< MatrixXd > all_sa_c0_X, all_sb_c0_X;
+            vector< vector<bool> > all_valids;
+            // for( int k=0 ; k< 5 ; k++ )
             while( true )
             {
                 int _a = random_in_range( 0, (int)all_i[0].size() );
@@ -671,36 +675,68 @@ int main( int argc, char ** argv )
                 }
 
 
-
                 // --- Change co-ordinate system of aX and bX
-                Matrix4d wTa;
+                Matrix4d wTa, wTb;
                 wTa = all_odom_poses[0][_a];
-                assert( status );
-
-
-                Matrix4d wTb;
                 wTb = all_odom_poses[1][_b];
-                assert( status );
-
 
                 //3d points espressed in 0th camera of the sequence
                 MatrixXd sa_c0_X = (all_odom_poses[0][0].inverse() * wTa) * aX;
                 MatrixXd sb_c0_X = (all_odom_poses[1][0].inverse() * wTb) * bX;
+
+                //
+                all_sa_c0_X.push_back( sa_c0_X );
+                all_sb_c0_X.push_back( sb_c0_X );
+                all_valids.push_back( valids );
 
 
                 // --- Viz
                 visualization_msgs::Marker l_mark;
                 RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
                 l_mark.scale.x *= 0.5;
-                l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b);
+                l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
                 marker_pub.publish( l_mark );
 
 
                 // --- Wait Key
-                cout << "press b to break, press any other key to keep drawing more pairs\n";
+                cout << "press `p` for pose computation, press `b` to break, press any other key to keep drawing more pairs\n";
                 char ch = cv::waitKey(0) & 0xEFFFFF;
                 if( ch == 'b' )
                     break;
+
+                if( ch == 'p' )
+                {
+                    MatrixXd dst0, dst1;
+                    MiscUtils::gather( all_sa_c0_X, all_valids, dst0 );
+                    MiscUtils::gather( all_sb_c0_X, all_valids, dst1 );
+
+                    // RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__sa_c0_X.txt", sa_c0_X );
+                    // RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__sb_c0_X.txt", sb_c0_X);
+
+                    // Pose Computation
+                    Matrix4d a_T_b;
+                    // TODO todo need to use valid
+                    PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    cout << "a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+
+                    MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
+                    RosPublishUtils::publish_3d( marker_pub, AAA,
+                        "AAA", 0,
+                        255,0,0, float(1.0), 1.5 );
+
+                    MatrixXd BBB = all_odom_poses[ 1 ][0].inverse() * vec_surf_map[ 1 ]->get_surfel_positions();
+                    RosPublishUtils::publish_3d( marker_pub, BBB,
+                        "BBB", 0,
+                        0,255,0, float(1.0), 1.5 );
+
+
+                    MatrixXd YYY = a_T_b * BBB;
+                    RosPublishUtils::publish_3d( marker_pub, YYY,
+                        "tr", 0,
+                        0,255,255, float(1.0), 1.5 );
+
+
+                }
             }
             cv::destroyWindow("GMSMatcher");
 

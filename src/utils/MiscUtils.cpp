@@ -142,7 +142,55 @@ void MiscUtils::dmatch_2_eigen( const std::vector<cv::KeyPoint>& kp1, const std:
     }
 }
 
+int MiscUtils::total_true( const vector<bool>& V )
+{
+    int s=0;
+    for( int i=0 ; i<(int)V.size() ; i++ )
+        if( V[i] == true )
+            s++;
 
+    return s;
+}
+
+void MiscUtils::gather( const vector<MatrixXd>& mats, const vector<  vector<bool> >& valids, MatrixXd& dst )
+{
+    cout << "-----------MiscUtils::gather()\n";
+
+    cout << "mats.size = " << mats.size() << "\tvalids.size=" << valids.size() << endl;
+    assert( mats.size() == valids.size() && mats.size() > 0 );
+    int ntotalvalids = 0;
+    for( int i=0 ; i<(int)mats.size() ; i++ )
+    {
+        int nvalids = 0;
+        for( int j=0 ; j<(int)valids[i].size() ; j++  )
+        {
+            if( valids[i][j] == true )
+                nvalids++;
+        }
+        ntotalvalids += nvalids;
+
+        cout << "i=" << i << "\tmats[i]=" << mats[i].rows() << "x" << mats[i].cols() << "\t";
+        cout << "valids.size=" << valids[i].size() << " " << "nvalids=" << nvalids << endl;
+    }
+    cout << "ntotalvalids=" << ntotalvalids << endl;
+
+
+    dst = MatrixXd::Zero( mats[0].rows() , ntotalvalids );
+    int c = 0;
+    for( int i=0 ; i<(int)mats.size() ; i++ )
+    {
+        for( int j=0 ; j<(int)valids[i].size() ; j++  )
+        {
+            if( valids[i][j] == true ) {
+                dst.col(c) = mats[i].col(j);
+                c++;
+            }
+        }
+    }
+    assert( c == ntotalvalids );
+
+    cout << "-----------END MiscUtils::gather()\n";
+}
 
 void MiscUtils::plot_point_sets( const cv::Mat& im, const MatrixXd& pts_set, cv::Mat& dst,
                                         const cv::Scalar& color, bool enable_keypoint_annotation, const string& msg )
