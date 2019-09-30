@@ -303,11 +303,18 @@ bool RawFileIO::read_eigen_matrix( const std::vector<double>& ary, Matrix4d& res
 
 bool RawFileIO::if_file_exist( char * fname )
 {
+    // cout << "[RawFileIO::if_file_exist] fname=" << fname << endl;
   ifstream f(fname);
   return f.good();
 }
 
 bool RawFileIO::if_file_exist( string fname ) { return if_file_exist( fname.c_str() ); }
+
+
+bool RawFileIO::if_file_exist_2 (const std::string& name) {
+  struct stat buffer;
+  return (stat (name.c_str(), &buffer) == 0);
+}
 
 bool RawFileIO::is_path_a_directory(const char* path)
 {

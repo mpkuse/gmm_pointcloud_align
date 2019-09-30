@@ -250,6 +250,13 @@ add_executable( local_ptcloud
         src/PoseComputation.cpp
         )
 
+    add_executable( icl_nuim_tool
+        src/icl_nuim_tool.cpp
+        src/ICLNUIMLoader.cpp
+        ${CamodocalCameraModelSources}
+        ${KuseUtils}
+        )
+
     add_executable( densesurfelmapping_standalone
         #src/surfel_fusion/main.cpp
         src/densesurfelmapping_standalone.cpp
@@ -332,6 +339,13 @@ target_link_libraries( test_objloader
         ${OpenCV_LIBS}
         ${THEIA_LIBRARIES}
       )
+
+
+      target_link_libraries( icl_nuim_tool
+         ${catkin_LIBRARIES}
+         ${OpenCV_LIBS}
+         #${THEIA_LIBRARIES}
+       )
 
       target_link_libraries( densesurfelmapping_standalone
          ${catkin_LIBRARIES}
