@@ -379,6 +379,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     cv::imshow( "GMSMatcher", dst_gmsmatcher );
 
 
+    #if 1
     // -- 3D Points from depth image at the correspondences
     // vector<bool> valids;
     StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_depthimage(
@@ -400,6 +401,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
         cout << TermColor::YELLOW() << "GMSMatcher produced fewer than 50 valid (points where good depth value) point matches, return false\n" << TermColor::RESET();
         return false;
     }
+    #endif
     return true;
 
 
@@ -732,7 +734,7 @@ int main( int argc, char ** argv )
 
                     MatrixXd YYY = a_T_b * BBB;
                     RosPublishUtils::publish_3d( marker_pub, YYY,
-                        "tr", 0,
+                        "a_T_b x BBB", 0,
                         0,255,255, float(1.0), 1.5 );
 
 

@@ -44,6 +44,10 @@ class SurfelMap
 public:
     SurfelMap(ros::NodeHandle &_nh);
     SurfelMap(bool flag);
+    SurfelMap( int _im_width, int _im_height,
+        float fx, float fy,  float cx, float cy,
+        float far, float near);
+
     ~SurfelMap();
 
     void image_input(const sensor_msgs::ImageConstPtr &image_input);

@@ -34,6 +34,7 @@ public:
     bool retrive_im_depth( int i, cv::Mat& im, cv::Mat& depth );
     bool retrive_im_depth( int i, cv::Mat& im, cv::Mat& depth, cv::Mat& depth_falsecolor );
     bool retrive_pose( int i, Matrix4d& wTc );
+    ros::Time idx_to_stamp( int i );
 
     int len() const { return min(IM_LIST.size(), POSE_LIST.size()); }
 
@@ -43,6 +44,7 @@ public:
 
 private:
     string img_fld, traj_file;
+    ros::Time begin;
 
     vector<string> IM_LIST;
     vector<string> DEPTH_LIST;
@@ -50,4 +52,23 @@ private:
 
     bool imread_depth( string fname, cv::Mat& depth );
 
+
+
+public:
+    bool load_gt_pose();  // this will load the file: livingRoom0n.gt.sim etc, only available for livingRoom sequence
+
+private:
+    vector<Matrix4d> GT_POSE_LIST;
+    bool m_gt_poses_available = false;
+
+
+public:
+    void set_camera_intrinsics( float _fx, float _fy, float _cx, float _cy )
+    {
+        fx = _fx; fy = _fy; cx = _cx; cy = _cy;
+        m_cameraIntrinsics = true;
+    }
+private:
+    float fx, fy, cx, cy;
+    bool m_cameraIntrinsics =false;
 };

@@ -5,12 +5,12 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Reference1
-        - /Reference1/Axes1
         - /Reference1/Grid1
         - /Marker1
         - /Marker1/Status1
         - /Marker1/Namespaces1
-      Splitter Ratio: 0.5
+        - /Grid1
+      Splitter Ratio: 0.838888884
     Tree Height: 745
   - Class: rviz/Selection
     Name: Selection
@@ -68,8 +68,30 @@ Visualization Manager:
       Marker Topic: /marker
       Name: Marker
       Namespaces:
-        {}
+        cam_viz0: true
+        cam_viz1: true
+        pt matches5<->5;nvalids=150: true
+        surfels0: true
+        surfels1: true
       Queue Size: 100
+      Value: true
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.0299999993
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: YZ
+      Plane Cell Count: 10
+      Reference Frame: <Fixed Frame>
       Value: true
   Enabled: true
   Global Options:
@@ -95,24 +117,24 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 3.04449987
+      Distance: 23.9559288
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -2.53234553
-        Y: 2.27467823
-        Z: -4.76837158e-07
+        X: 0.183841407
+        Y: 1.35493708
+        Z: 2.80823679e-06
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.485317081
+      Pitch: -0.324797332
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 2.76620102
+      Yaw: 6.24557877
     Saved:
       - Class: rviz/Orbit
         Distance: 49.6446877

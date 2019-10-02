@@ -108,6 +108,7 @@ ICLNUIMLoader::ICLNUIMLoader( const string DB_BASE, const string DB_NAME, const 
     }
     // print_info();
     cout << "---Constructor OK!, len=" << len() << "\n";
+    begin = ros::Time::now();
 
 }
 
@@ -144,7 +145,7 @@ bool ICLNUIMLoader::retrive_im_depth( int i, cv::Mat& im, cv::Mat& depth )
 
     im = cv::imread( IM_LIST[i] );
 
-    // TODO depth
+    // depth
     depth = cv::Mat::zeros( im.rows, im.cols, CV_32FC1 );
     imread_depth( DEPTH_LIST[i], depth );
 
@@ -170,12 +171,12 @@ bool ICLNUIMLoader::retrive_im_depth( int i, cv::Mat& im, cv::Mat& depth, cv::Ma
     cv::Mat depth_falsecolor_gray = cv::Mat::zeros( im.rows, im.cols, CV_8UC1 );
     double d_min, d_max;
     cv::minMaxLoc(depth, &d_min, &d_max);
-    // cout << "d_min=" << d_min << "\td_max=" << d_max << endl;
+    cout << "[ICLNUIMLoader::retrive_im_depth]d_min=" << d_min << "\td_max=" << d_max << endl;
     for( int r=0; r<depth.rows ; r++ )
     {
         for( int c=0 ; c<depth.cols ; c++ )
         {
-            depth_falsecolor_gray.at<uint8_t>(r,c) = (uint8_t)( 250. * depth.at<float>(r,c) );
+            depth_falsecolor_gray.at<uint8_t>(r,c) = (uint8_t)( 25. * depth.at<float>(r,c) );
         }
     }
     cv::applyColorMap(depth_falsecolor_gray, depth_falsecolor, cv::COLORMAP_HOT );
@@ -183,9 +184,13 @@ bool ICLNUIMLoader::retrive_im_depth( int i, cv::Mat& im, cv::Mat& depth, cv::Ma
     return true;
 }
 
+
+
 bool ICLNUIMLoader::imread_depth( string fname, cv::Mat& depth )
 {
     assert( depth.rows > 0 && depth.cols > 0 );
+    assert( m_cameraIntrinsics );
+
     ifstream file;
     file.open (fname);
     if (!file.is_open()) {
@@ -197,13 +202,17 @@ bool ICLNUIMLoader::imread_depth( string fname, cv::Mat& depth )
     int c = 0;
     while (file >> word)
     {
-        float f = std::stof( word );
+        float z = std::stof( word );
         if( DB_NAME == "office_room" )
-            f /= 1000.; //for `office_room` depth values are in mm and for `living_room` depth values are in meters
+           z /= 100.; //for `office_room` depth values are in mm and for `living_room` depth values are in meters
         int j = c % depth.cols;
         int i = c / depth.cols;
 
-        depth.at<float>( i,j ) = f;
+        // this conversion is adopted from : https://www.doc.ic.ac.uk/~ahanda/VaFRIC/compute3Dpositions.m
+        float denom = ( ( j - cx ) / fx )*( ( j - cx ) / fx ) +  ( ( i - cy ) / fy )*( ( i - cy ) / fy ) + 1.;
+        z = z / sqrt( denom );
+
+        depth.at<float>( i,j ) = z;
         c++;
     }
 
@@ -220,6 +229,87 @@ bool ICLNUIMLoader::retrive_pose( int i, Matrix4d& wTc )
         return false;
     }
 
-    wTc = POSE_LIST[i];
+    wTc = Matrix4d( POSE_LIST[i] );
+    return true;
+}
+
+ros::Time ICLNUIMLoader::idx_to_stamp( int i )
+{
+    float hz = 30;
+    return begin + ros::Duration( i * 0.001 * hz );
+}
+
+
+bool ICLNUIMLoader::load_gt_pose()
+{
+    string gt_pose_filename = DB_BASE+"/"+DB_NAME+"/"+DB_NAME+to_string(DB_IDX)+"n.gt.sim";
+    cout << "if_file_exist(" << gt_pose_filename << ")?\n";
+    if( RawFileIO::if_file_exist_2(gt_pose_filename.c_str()) == false )
+    {
+        cout << TermColor::RED() << "The gt_pose_filename file = `" << gt_pose_filename << "` doesnt exist\n" << TermColor::RESET();
+        return false;
+    }
+    cout << "\t...OK!\n";
+
+
+    // Read the file:
+    // Sample
+    // ```
+    // -0.999762 0.000000 -0.021799 1.370500
+    // 0.000000 1.000000 0.000000 1.517390
+    // 0.021799 0.000000 -0.999762 1.449630
+    //
+    // -0.999738 -0.000418 -0.022848 1.370020
+    // -0.000464 0.999998 0.002027 1.526344
+    // 0.022848 0.002037 -0.999737 1.448990
+    //
+    // -0.999745 0.001006 -0.022556 1.370669
+    // 0.000797 0.999956 0.009303 1.517287
+    // 0.022564 0.009283 -0.999702 1.450286
+    //
+    // -0.999757 0.001846 -0.021966 1.369777
+    // 0.001666 0.999965 0.008176 1.514967
+    // 0.021980 0.008137 -0.999725 1.450406
+    //   .
+    //   .
+    //   .
+    // ```
+
+    ifstream file;
+    file.open (gt_pose_filename);
+    if (!file.is_open()) {
+        cout << "[ICLNUIMLoader::load_gt_pose]ERROR, cannot open gt_pose_filename="<< gt_pose_filename << "\n";
+        return false;
+    }
+
+    string word;
+    int c = 0;
+    Matrix4d wTc = Matrix4d::Identity();
+    GT_POSE_LIST.clear();
+    while (file >> word)
+    {
+        // cout << c << "\t" << word << endl;
+
+        int i = c / 4;
+        int j = c % 4;
+        // cout << "wTc(" << i << "," << j << ") := " << word << endl;
+        wTc( i, j ) = (double) std::stof( word );
+
+        c++;
+        if( c % 12 == 0 ) {
+            GT_POSE_LIST.push_back( Matrix4d(wTc) );
+            // cout << *(GT_POSE_LIST.rbegin()) << endl;
+            wTc = Matrix4d::Identity();
+            c = 0;
+        }
+
+        // if( GT_POSE_LIST.size() > 2 )
+            // break;
+    }
+
+
+    cout << "[ICLNUIMLoader::load_gt_pose] : GT_POSE_LIST.size = " << GT_POSE_LIST.size() << endl;;
+    assert( GT_POSE_LIST.size() == POSE_LIST.size() );
+    m_gt_poses_available = true;
     return true;
 }

@@ -203,6 +203,8 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
     MatrixXd& uv_X, MatrixXd& uvd_Y, vector<bool>& valids
 )
 {
+    float near = 0.5;
+    float far = 4.5;
     assert( uv.cols() > 0 && uv.cols() == uv_d.cols() );
     // uv_X.clear();
     // uvd_Y.clear();
@@ -221,15 +223,19 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
     {
 
         float depth_val;
-        if( depth_image_uv.type() == CV_16UC1 )
+        if( depth_image_uv.type() == CV_16UC1 ) {
             depth_val = .001 * depth_image_uv.at<uint16_t>( uv(1,i), uv(0,i) );
-        else if( depth_image_uv.type() == CV_32FC1 )
-            depth_val = .001 * depth_image_uv.at<float>( uv(1,i), uv(0,i) );
+        }
+        else if( depth_image_uv.type() == CV_32FC1 ) {
+            // just assuming the depth values are in meters when CV_32FC1
+            depth_val = depth_image_uv.at<float>( uv(1,i), uv(0,i) );
+        }
         else {
             assert( false );
             cout << "[StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_depthimage]depth type is neighter of CV_16UC1 or CV_32FC1\n";
             exit(1);
         }
+        // cout << "ath uv_i=" << i << " depth_val = " << depth_val << endl;
 
         Vector3d _0P;
         Vector2d _0p; _0p << uv(0,i), uv(1,i);
@@ -237,7 +243,7 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
         // uv_X.push_back( depth_val * _0P );
         uv_X.col(i).topRows(3) = depth_val * _0P;
 
-        if( depth_val > 0.5 && depth_val < 3 )
+        if( depth_val > near && depth_val < far )
             valids.push_back( true );
         else
             valids.push_back( false );
@@ -249,15 +255,19 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
     {
 
         float depth_val;
-        if( depth_image_uvd.type() == CV_16UC1 )
+        if( depth_image_uvd.type() == CV_16UC1 ) {
             depth_val = 0.001 * depth_image_uvd.at<uint16_t>( uv_d(1,i), uv_d(0,i) );
-        else if( depth_image_uvd.type() == CV_32FC1 )
-            depth_val = 0.001 * depth_image_uvd.at<float>( uv_d(1,i), uv_d(0,i) );
+        }
+        else if( depth_image_uvd.type() == CV_32FC1 ) {
+            // just assuming the depth values are in meters when CV_32FC1
+            depth_val =  depth_image_uvd.at<float>( uv_d(1,i), uv_d(0,i) );
+        }
         else {
             assert( false );
             cout << "[StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_depthimage]depth type is neighter of CV_16UC1 or CV_32FC1\n";
             exit(1);
         }
+        // cout << "ath uvd_i=" << i << " depth_val = " << depth_val << endl;
 
         Vector3d _1P;
         Vector2d _1p; _1p << uv_d(0,i), uv_d(1,i);
@@ -265,7 +275,7 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
         // uvd_Y.push_back( depth_val * _1P );
         uvd_Y.col(i).topRows(3) = depth_val * _1P;
 
-        if( depth_val > 0.5 && depth_val < 3 )
+        if( depth_val > near && depth_val < far )
             valids[i] = valids[i] && true;
         else
             valids[i] = valids[i] && false;

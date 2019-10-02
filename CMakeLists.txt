@@ -255,6 +255,7 @@ add_executable( local_ptcloud
         src/ICLNUIMLoader.cpp
         ${CamodocalCameraModelSources}
         ${KuseUtils}
+        ${KaixuanUtils}
         )
 
     add_executable( densesurfelmapping_standalone

@@ -76,7 +76,7 @@ inactive_pointcloud(new PointCloud)
 // Constructor by mpkuse (SANS ros)
 SurfelMap::SurfelMap(bool flag): inactive_pointcloud(new PointCloud)
 {
-    //TODO: Better pass it the params. (or pass the camodocal struct)
+
 
     // realsense camera.
     cam_width  = 640;
@@ -112,6 +112,46 @@ SurfelMap::SurfelMap(bool flag): inactive_pointcloud(new PointCloud)
     cout << "[SurfelMap::SurfelMap] DONE...\n";
 }
 
+
+SurfelMap::SurfelMap( int _im_width, int _im_height,
+    float fx, float fy,  float cx, float cy,
+    float far, float near): inactive_pointcloud(new PointCloud)
+{
+
+
+    // realsense camera.
+    cam_width  = _im_width;  //640;
+    cam_height = _im_height; //480;
+
+    cam_fx=fx; //385.754486;
+    cam_cx=fy; //323.120483;
+    cam_fy=cx; //385.754486;
+    cam_cy=cy; //236.7432098;
+
+    camera_matrix = Eigen::Matrix3d::Zero();
+    camera_matrix(0, 0) = cam_fx;
+    camera_matrix(0, 2) = cam_cx;
+    camera_matrix(1, 1) = cam_fy;
+    camera_matrix(1, 2) = cam_cy;
+    camera_matrix(2, 2) = 1.0;
+
+    far_dist = far; //6.0;
+    near_dist = near; // 0.5;
+    drift_free_poses= 100; //    <!-- for deform the map -->
+    fusion_functions.initialize(cam_width, cam_height, cam_fx, cam_fy, cam_cx, cam_cy, far_dist, near_dist);
+
+    is_first_path = true;
+
+    extrinsic_matrix = Eigen::Matrix4d::Identity(); // Best is get rid of this, and only deal with camera poses
+    extrinsic_matrix_initialized = true;
+    cout << "extrinsic_matrix_initialized: " << extrinsic_matrix_initialized << endl;
+
+
+    cout << "[SurfelMap::SurfelMap]Parameters:\n------------\n";
+    cout << "camera_matrix:\n" << camera_matrix << endl;
+    cout << "far_dist = " << far_dist << '\t' << "near_dist = " << near_dist << endl;
+    cout << "[SurfelMap::SurfelMap] DONE...\n";
+}
 
 SurfelMap::~SurfelMap()
 {
@@ -176,8 +216,16 @@ void SurfelMap::depth_input( const ros::Time _t, const cv::Mat& _depthim )
         _depthim.convertTo( depth_image, CV_32FC1, kDepthScalingFactor );
         depth_buffer.push_back(std::make_pair(_t, depth_image));
         synchronize_msgs();
-    }else {
-        cout << "[SurfelMap::depth_input]....FATAL...I need CV_16UC1 for depth\n";
+    }else if( _depthim.type() == CV_32FC1 ) {
+        double d_max, d_min;
+        cv::minMaxLoc(_depthim, &d_min, &d_max);
+        assert( d_max > 0.01 && d_max<20.);
+        depth_buffer.push_back(std::make_pair(_t, _depthim));
+        synchronize_msgs();
+
+    }
+    else {
+        cout << "[SurfelMap::depth_input]....FATAL...I need CV_16UC1 or CV_32FC1 for depth\n";
         exit(3);
     }
 

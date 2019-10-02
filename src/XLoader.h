@@ -251,7 +251,7 @@ public:
             // string _tmp = data_node["w_T_c"];
             bool status = RawFileIO::read_eigen_matrix4d_fromjson(  data_node["w_T_c"], w_T_c  );
             assert( status );
-            return status; 
+            return status;
 
     }
 
