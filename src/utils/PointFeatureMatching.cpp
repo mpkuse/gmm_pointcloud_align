@@ -1,5 +1,112 @@
 #include "PointFeatureMatching.h"
 
+// #define ___StaticPointFeatureMatching__point_feature_matches( msg ) msg;
+#define ___StaticPointFeatureMatching__point_feature_matches( msg ) ;
+void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
+                MatrixXd&u, MatrixXd& ud )
+{
+    assert( !imleft_undistorted.empty() && !imright_undistorted.empty() );
+
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << TermColor::YELLOW() << "=== [StaticPointFeatureMatching::point_feature_matches]\n" << TermColor::RESET() ;)
+    cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(500);
+    std::vector<cv::KeyPoint> keypoints1, keypoints2;
+    cv::Mat descriptors1, descriptors2;
+    fdetector->detectAndCompute(imleft_undistorted, cv::Mat(), keypoints1, descriptors1);
+    fdetector->detectAndCompute(imright_undistorted, cv::Mat(), keypoints2, descriptors2);
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << "# of keypoints : "<< keypoints1.size() << "\t";
+    cout << "# of keypoints : "<< keypoints2.size() << "\t";
+    cout << "descriptors shape : "<< descriptors1.rows << "x" << descriptors1.cols << "\t";
+    cout << "descriptors shape : "<< descriptors2.rows << "x" << descriptors2.cols << endl;
+    )
+
+    #if 0
+    cv::BFMatcher matcher(cv::NORM_HAMMING);
+    std::vector< cv::DMatch > matches;
+    matcher.match(descriptors1, descriptors2, matches);
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << "#number of matches : " << matches.size() << endl; )
+
+    // MatrixXd M1, M2;
+    if( matches.size() > 0 )
+        MiscUtils::dmatch_2_eigen( keypoints1, keypoints2, matches, u, ud, true );
+
+    #endif
+
+    //
+    // Matcher - FLAN (Approx NN)
+    if(descriptors1.type()!=CV_32F)
+    {
+        descriptors1.convertTo(descriptors1, CV_32F);
+        descriptors2.convertTo(descriptors2, CV_32F);
+    }
+    cv::FlannBasedMatcher matcher;
+    std::vector< std::vector< cv::DMatch > > matches_raw;
+    matcher.knnMatch( descriptors1, descriptors2, matches_raw, 2 );
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << "# Matches : " << matches_raw.size() << "\t"; //N
+    cout << "# Matches[0] : " << matches_raw[0].size() << endl; //2
+    )
+
+    //
+    // Lowe's Ratio test
+    vector<cv::Point2f> pts_1, pts_2;
+    lowe_ratio_test( keypoints1, keypoints2, matches_raw, pts_1, pts_2 );
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << "# Retained (after lowe_ratio_test): "<< pts_1.size() << endl; // == pts_2.size()
+    )
+
+
+    #if 0
+    //
+    bool make_homogeneous = true;
+    u = MatrixXd::Constant( (make_homogeneous?3:2), pts_1.size(), 1.0 );
+    ud = MatrixXd::Constant( (make_homogeneous?3:2), pts_2.size(), 1.0 );
+    for( int k=0 ; k<pts_1.size() ; k++ )
+    {
+        u(0,k) = pts_1[k].x;
+        u(1,k) = pts_1[k].y;
+
+        ud(0,k) = pts_2[k].x;
+        ud(1,k) = pts_2[k].y;
+    }
+    #endif
+
+    // F-test
+    vector<uchar> status;
+    cv::findFundamentalMat(pts_1, pts_2, cv::FM_RANSAC, 5.0, 0.99, status);
+    assert( pts_2.size() == status.size() );
+    int n_good = 0;
+    for( int k=0 ;k<status.size();k++)
+        if( status[k] > 0 )
+            n_good++;
+    ___StaticPointFeatureMatching__point_feature_matches(
+        cout << "....Only " << n_good << " points pass the F-test\n";)
+
+        //
+        bool make_homogeneous = true;
+        u = MatrixXd::Constant( (make_homogeneous?3:2), n_good, 1.0 );
+        ud = MatrixXd::Constant( (make_homogeneous?3:2), n_good, 1.0 );
+        int ck = 0;
+        for( int k=0 ; k<pts_1.size() ; k++ )
+        {
+            if( status[k] > 0 ) {
+                u(0,ck) = pts_1[k].x;
+                u(1,ck) = pts_1[k].y;
+
+                ud(0,ck) = pts_2[k].x;
+                ud(1,ck) = pts_2[k].y;
+                ck++;
+            }
+        }
+        assert( ck == n_good );
+
+    ___StaticPointFeatureMatching__point_feature_matches(
+    cout << "=== [StaticPointFeatureMatching::point_feature_matches] Finished\n";)
+}
+
+
 #define ___StaticPointFeatureMatching__gms_point_feature_matches( msg ) msg;
 // #define ___StaticPointFeatureMatching__gms_point_feature_matches( msg ) ;
 void StaticPointFeatureMatching::gms_point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
@@ -284,5 +391,29 @@ bool StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_dep
 
     return true;
 
+
+}
+
+
+void StaticPointFeatureMatching::lowe_ratio_test( const vector<cv::KeyPoint>& keypoints1, const vector<cv::KeyPoint>& keypoints2 ,
+                  const std::vector< std::vector< cv::DMatch > >& matches_raw,
+                  vector<cv::Point2f>& pts_1, vector<cv::Point2f>& pts_2, float threshold )
+{
+    pts_1.clear();
+    pts_2.clear();
+    assert( matches_raw.size() > 0 );
+    assert( matches_raw[0].size() >= 2 );
+
+    for( int j=0 ; j<matches_raw.size() ; j++ )
+    {
+        if( matches_raw[j][0].distance < threshold * matches_raw[j][1].distance ) //good match
+        {
+            // Get points
+            int t = matches_raw[j][0].trainIdx;
+            int q = matches_raw[j][0].queryIdx;
+            pts_1.push_back( keypoints1[q].pt );
+            pts_2.push_back( keypoints2[t].pt );
+        }
+    }
 
 }

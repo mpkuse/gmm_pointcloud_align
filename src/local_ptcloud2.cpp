@@ -50,7 +50,7 @@ using json = nlohmann::json;
 
 #include "surfel_fusion/surfel_map.h"
 
-#include <theia/theia.h>
+// #include <theia/theia.h>
 
 void write_to_disk_for_goicp( MatrixXd& __p , const string goicp_fname )
 {
@@ -335,12 +335,90 @@ void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& sta
 
 }
 
+
+// Given the json state, and the index of 2 images , gives the image correspondences
+// and the 3d points of those correspondences
+//      STATE: The loaded json file (can be obtained from checkpoint of cerebro)
+//      idx0, idx1 : Index0, Index1. These indices will be looked up from STATE.
+//      uv_a, uv_b [Output] : 2d point. xy (ie. col, row) in image plane. 3xN
+bool image_correspondences( const json& STATE, XLoader& xloader,
+    int idx_a, int idx_b,
+    MatrixXd& uv_a, MatrixXd& uv_b )
+{
+    // -- Retrive Image Data
+    json data_node_a = STATE["DataNodes"][idx_a];
+    cv::Mat image_a, depth_a;
+    bool status = xloader.retrive_image_data_from_json_datanode( data_node_a, image_a, depth_a );
+
+    json data_node_b = STATE["DataNodes"][idx_b];
+    cv::Mat image_b, depth_b;
+    status = xloader.retrive_image_data_from_json_datanode( data_node_b, image_b, depth_b );
+
+
+    // cout << TermColor::GREEN() << "=== Showing the 1st image of both seq. Press any key to continue\n"<< TermColor::RESET();
+    // cv::imshow( "image_a", image_a );
+    // cv::imshow( "image_b", image_b );
+    ElapsedTime elp;
+
+    #if 0
+    // -- GMS Matcher
+    // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+    elp.tic();
+    StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
+    cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+
+    cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
+    cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
+
+    if( uv_a.cols() < 50 ) {
+        cout << TermColor::YELLOW() << "\nGMSMatcher produced fewer than 50 point matches, return false\n" << TermColor::RESET();
+        return false;
+    }
+
+    cv::Mat dst_gmsmatcher;
+    MiscUtils::plot_point_pair( image_a, uv_a, idx_a,
+                                image_b, uv_b, idx_b, dst_gmsmatcher, 3, "gms plot (resize 0.5)" );
+    cv::resize(dst_gmsmatcher, dst_gmsmatcher, cv::Size(), 0.5, 0.5);
+    cv::imshow( "GMSMatcher", dst_gmsmatcher );
+    #endif
+
+
+    #if 1
+    // -- Simple ORB Matcher
+    cout << TermColor::GREEN() << "=== Point feature matcher (ORB) for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+
+    elp.tic();
+    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b );
+    cout << TermColor::BLUE() << "StaticPointFeatureMatching::point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+
+
+    cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
+    cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
+
+    if( uv_a.cols() < 5 ) {
+        cout << TermColor::YELLOW() << "\npoint_feature_matches() produced fewer than 5 point matches, return false\n" << TermColor::RESET();
+        return false;
+    }
+
+    cv::Mat dst_matcher;
+    MiscUtils::plot_point_pair( image_a, uv_a, idx_a,
+                                image_b, uv_b, idx_b, dst_matcher,
+                                // 3, "gms plot (resize 0.5)"
+                                cv::Scalar( 0,0,255 ), cv::Scalar( 0,255,0 ), false, "gms plot (resize 0.5)"
+                            );
+    cv::resize(dst_matcher, dst_matcher, cv::Size(), 0.5, 0.5);
+    cv::imshow( "GMSMatcher", dst_matcher );
+    #endif
+    return true;
+}
+
 // Given the json state, and the index of 2 images , gives the image correspondences
 // and the 3d points of those correspondences
 //      STATE: The loaded json file (can be obtained from checkpoint of cerebro)
 //      idx0, idx1 : Index0, Index1. These indices will be looked up from STATE.
 //      uv_a, uv_b [Output] : 2d point. xy (ie. col, row) in image plane. 3xN
 //      aX, bX     [Output] : 3d points of uv_a, uv_b (respectively) expressed in co-ordinates of the camera. 4xN
+//      valids     [output] : an array of size N, which denotes the validity of each 3d points. The points were no depth or where out-of-range depth this will be false
 bool image_correspondences( const json& STATE, XLoader& xloader,
     int idx_a, int idx_b,
     MatrixXd& uv_a, MatrixXd& uv_b,
@@ -359,11 +437,15 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     // cout << TermColor::GREEN() << "=== Showing the 1st image of both seq. Press any key to continue\n"<< TermColor::RESET();
     // cv::imshow( "image_a", image_a );
     // cv::imshow( "image_b", image_b );
+    ElapsedTime elp;
 
-
+    #if 0
     // -- GMS Matcher
-    cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+    // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+    elp.tic();
     StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
+    cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+
     cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
     cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
 
@@ -377,11 +459,41 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
                                 image_b, uv_b, idx_b, dst_gmsmatcher, 3, "gms plot (resize 0.5)" );
     cv::resize(dst_gmsmatcher, dst_gmsmatcher, cv::Size(), 0.5, 0.5);
     cv::imshow( "GMSMatcher", dst_gmsmatcher );
+    #endif
+
+
+    #if 1
+    // -- Simple ORB Matcher
+    cout << TermColor::GREEN() << "=== Point feature matcher (ORB) for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+
+    elp.tic();
+    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b );
+    cout << TermColor::BLUE() << "StaticPointFeatureMatching::point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+
+
+    cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
+    cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
+
+    if( uv_a.cols() < 5 ) {
+        cout << TermColor::YELLOW() << "\npoint_feature_matches() produced fewer than 5 point matches, return false\n" << TermColor::RESET();
+        return false;
+    }
+
+    cv::Mat dst_matcher;
+    MiscUtils::plot_point_pair( image_a, uv_a, idx_a,
+                                image_b, uv_b, idx_b, dst_matcher,
+                                // 3, "gms plot (resize 0.5)"
+                                cv::Scalar( 0,0,255 ), cv::Scalar( 0,255,0 ), false, "gms plot (resize 0.5)"
+                            );
+    cv::resize(dst_matcher, dst_matcher, cv::Size(), 0.5, 0.5);
+    cv::imshow( "GMSMatcher", dst_matcher );
+    #endif
 
 
     #if 1
     // -- 3D Points from depth image at the correspondences
     // vector<bool> valids;
+    valids.clear();
     StaticPointFeatureMatching::make_3d_3d_collection__using__pfmatches_and_depthimage(
         xloader.left_camera,
         uv_a, depth_a, uv_b, depth_b,
@@ -392,16 +504,20 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     for( int i=0 ; i<valids.size() ; i++ )
         if( valids[i]  == true )
             nvalids++;
-    cout << "nvalids=" << nvalids << " of total=" << valids.size() << "\t";
+    cout << TermColor::YELLOW() <<  "nvalids=" << nvalids << " of total=" << valids.size() << TermColor::RESET() << "\t";
 
     cout << "aX: " << aX.rows() << "x" << aX.cols() << "\t";
     cout << "bX: " << bX.rows() << "x" << bX.cols() << endl;
 
-    if( nvalids < 50 ) {
-        cout << TermColor::YELLOW() << "GMSMatcher produced fewer than 50 valid (points where good depth value) point matches, return false\n" << TermColor::RESET();
+    if( nvalids < 5 ) {
+        cout << TermColor::YELLOW() << "Of the total " << valids.size() << " point-matches, only " << nvalids << " had good depths, this is less than the threshold, so return false\n" << TermColor::RESET();
         return false;
     }
     #endif
+
+
+    // -- 3D points lookup from surfels.
+    //      Have the surfel maps of both sequence, given the tuple (frameID, u,v) get the surfelID
     return true;
 
 
@@ -459,7 +575,8 @@ int main( int argc, char ** argv )
     //
     //
     vector<int> idx_ptr;
-    idx_ptr.push_back(0);
+    idx_ptr.push_back(730);
+    idx_ptr.push_back(2885);
 
     map<  int,  vector<int>         > all_i; //other vector to hold multiple sequences
     map<  int,  vector<Matrix4d>    > all_odom_poses;
@@ -657,8 +774,15 @@ int main( int argc, char ** argv )
             vector< MatrixXd > all_sa_c0_X, all_sb_c0_X;
             vector< vector<bool> > all_valids;
             // for( int k=0 ; k< 5 ; k++ )
+            int rand_itr = 0;
             while( true )
             {
+                cout << "\n-----------------------\n";
+                cout << "--- rand_itr=" << rand_itr ;
+                cout << "\n-----------------------\n\n";
+                rand_itr++;
+
+
                 int _a = random_in_range( 0, (int)all_i[0].size() );
                 int _b = random_in_range( 0, (int)all_i[1].size() );
 
@@ -669,7 +793,7 @@ int main( int argc, char ** argv )
                 // --- Image correspondences and 3d points from depth images
                 MatrixXd uv_a, uv_b, aX, bX;
                 vector<bool> valids;
-                bool status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, aX, bX, valids );
+                bool status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, aX, bX, valids ); //there is an imshow in this
 
                 if( status == false ) {
                     cout << TermColor::RED() << "image_correspondences returned false, skip this sample\n" << TermColor::RESET();
@@ -678,6 +802,7 @@ int main( int argc, char ** argv )
 
 
                 // --- Change co-ordinate system of aX and bX
+                if( aX.cols() > 0 && bX.cols() > 0 ) {
                 Matrix4d wTa, wTb;
                 wTa = all_odom_poses[0][_a];
                 wTb = all_odom_poses[1][_b];
@@ -698,7 +823,9 @@ int main( int argc, char ** argv )
                 l_mark.scale.x *= 0.5;
                 l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
                 marker_pub.publish( l_mark );
-
+                }
+                else
+                    cout << TermColor::YELLOW() << "WARN no 3d points, so no publish\n" << TermColor::RESET();
 
                 // --- Wait Key
                 cout << "press `p` for pose computation, press `b` to break, press any other key to keep drawing more pairs\n";
@@ -712,29 +839,31 @@ int main( int argc, char ** argv )
                     MiscUtils::gather( all_sa_c0_X, all_valids, dst0 );
                     MiscUtils::gather( all_sb_c0_X, all_valids, dst1 );
 
-                    // RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__sa_c0_X.txt", sa_c0_X );
-                    // RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__sb_c0_X.txt", sb_c0_X);
+                    #if 0
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__dst0.txt", dst0 );
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__dst1.txt", dst1 );
+                    #endif
 
                     // Pose Computation
-                    Matrix4d a_T_b;
-                    // TODO todo need to use valid
-                    PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    Matrix4d a_T_b = Matrix4d::Identity();
+                    // PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    PoseComputation::align3D3DWithRefinement( dst0, dst1, a_T_b );
                     cout << "a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
 
                     MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
                     RosPublishUtils::publish_3d( marker_pub, AAA,
-                        "AAA", 0,
+                        "AAA (red)", 0,
                         255,0,0, float(1.0), 1.5 );
 
                     MatrixXd BBB = all_odom_poses[ 1 ][0].inverse() * vec_surf_map[ 1 ]->get_surfel_positions();
                     RosPublishUtils::publish_3d( marker_pub, BBB,
-                        "BBB", 0,
+                        "BBB (green)", 0,
                         0,255,0, float(1.0), 1.5 );
 
 
                     MatrixXd YYY = a_T_b * BBB;
                     RosPublishUtils::publish_3d( marker_pub, YYY,
-                        "a_T_b x BBB", 0,
+                        "a_T_b x BBB (cyan)", 0,
                         0,255,255, float(1.0), 1.5 );
 
 

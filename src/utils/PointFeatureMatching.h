@@ -37,6 +37,11 @@ public:
                                 MatrixXd& u, MatrixXd& ud, int n_orb_feat=5000 ); //< n_orb_feat has to be a few thousands atleast for spatial consistency checks.
 
 
+    // u : 3xN. (x,y) or (colID,rowID)
+    static void point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
+                    MatrixXd&u, MatrixXd& ud );
+
+
     // Given the point feature matches and the 3d image (from disparity map) will return
     // the valid world points and corresponding points.
     // [Input]
@@ -79,4 +84,12 @@ public:
         MatrixXd& uv_X, MatrixXd& uvd_Y, vector<bool>& valids
     );
 
+
+private:
+    // Give a set of knn=2 raw matches, eliminates matches based on Lowe's Ratio test.
+// Also returns the point features set.
+// Cite: Lowe, David G. "Distinctive image features from scale-invariant keypoints." International journal of computer vision 60.2 (2004): 91-110.
+    static void lowe_ratio_test( const vector<cv::KeyPoint>& keypoints1, const vector<cv::KeyPoint>& keypoints2 ,
+                      const std::vector< std::vector< cv::DMatch > >& matches_raw,
+                      vector<cv::Point2f>& pts_1, vector<cv::Point2f>& pts_2, float threshold=0.85 );
 };

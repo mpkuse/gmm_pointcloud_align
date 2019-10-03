@@ -142,12 +142,20 @@ public:
         return STATE;
     }
 
-    bool retrive_image_data_from_json_datanode( json data_node,
+
+#define _retrive_info_( msg ) msg;
+// #define _retrive_info_( msg ) ;
+
+// #define _retrive_debug_( msg ) msg;
+#define _retrive_debug_( msg ) ;
+
+
+bool retrive_image_data_from_json_datanode( json data_node,
         // ros::Time& stamp, Matrix4d& w_T_c,
         cv::Mat& left_image
     )
     {
-        cout << TermColor::GREEN() << "[retrive_image_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_image_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;)
 
             int64_t t_sec = data_node["stampNSec"];
             ros::Time stamp = ros::Time().fromNSec( t_sec );
@@ -168,13 +176,13 @@ public:
 
 
             string imleft_fname = base_path+"/cerebro_stash/left_image__" + std::to_string(stamp.toNSec()) + ".jpg";
-            cout << "\tload imleft_fname: " << imleft_fname << endl;
+            _retrive_debug_( cout << "\tload imleft_fname: " << imleft_fname << endl; )
             left_image = cv::imread( imleft_fname, 0 );
             if( !left_image.data ) {
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl;
+            _retrive_debug_( cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl; )
             return true;
 
     }
@@ -187,7 +195,7 @@ public:
         cv::Mat & depth_map
     )
     {
-        cout << TermColor::GREEN() << "[retrive_image_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_image_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
 
             int64_t t_sec = data_node["stampNSec"];
             ros::Time stamp = ros::Time().fromNSec( t_sec );
@@ -195,7 +203,7 @@ public:
 
             // if wTc and image do not exist then return
             if( data_node["isPoseAvailable"] == false || data_node["isKeyFrame"] == false ) {
-                cout << "\tno pose or image data...return false\n";
+                cout << "\t[retrive_image_data_from_json_datanode]no pose or image data...return false\n";
                 return false;
             }
 
@@ -208,25 +216,25 @@ public:
 
 
             string imleft_fname = base_path+"/cerebro_stash/left_image__" + std::to_string(stamp.toNSec()) + ".jpg";
-            cout << "\tload imleft_fname: " << imleft_fname << endl;
+            _retrive_debug_( cout << "\tload imleft_fname: " << imleft_fname << endl; )
             left_image = cv::imread( imleft_fname, 0 );
             if( !left_image.data ) {
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl;
+            _retrive_debug_( cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl; )
 
 
 
             // Direct Load depth
             string depth_image_fname = base_path+"/cerebro_stash/depth_image__" + std::to_string(stamp.toNSec()) + ".jpg.png";
-            cout << "\tload depth_image_fname: " << depth_image_fname << endl;
+            _retrive_debug_( cout << "\tload depth_image_fname: " << depth_image_fname << endl; )
             cv::Mat depth_image = cv::imread( depth_image_fname, -1 );
             if( !depth_image.data ) {
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load depth-image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl;
+            _retrive_debug_( cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl; )
             depth_map = depth_image;
             return true;
 
@@ -234,7 +242,7 @@ public:
 
     bool retrive_pose_from_json_datanode( json data_node, Matrix4d& w_T_c )
     {
-        cout << TermColor::GREEN() << "[retrive_pose_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_pose_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
 
             int64_t t_sec = data_node["stampNSec"];
             ros::Time stamp = ros::Time().fromNSec( t_sec );
@@ -242,7 +250,7 @@ public:
 
             // if wTc and image do not exist then return
             if( data_node["isPoseAvailable"] == false || data_node["isKeyFrame"] == false ) {
-                cout << "\tno pose or image data...return false\n";
+                cout << "\t[retrive_pose_from_json_datanode]no pose or image data...return false\n";
                 return false;
             }
 
@@ -261,7 +269,7 @@ public:
         cv::Mat& depth_map, cv::Mat& disparity_for_visualization_gray
     )
     {
-        cout << TermColor::GREEN() << "[retrive_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_data_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
 
             int64_t t_sec = data_node["stampNSec"];
             stamp = ros::Time().fromNSec( t_sec );
@@ -282,13 +290,13 @@ public:
 
 
             string imleft_fname = base_path+"/cerebro_stash/left_image__" + std::to_string(stamp.toNSec()) + ".jpg";
-            cout << "\tload imleft_fname: " << imleft_fname << endl;
+            _retrive_debug_( cout << "\tload imleft_fname: " << imleft_fname << endl; )
             left_image = cv::imread( imleft_fname, 0 );
             if( !left_image.data ) {
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl;
+            _retrive_debug_( cout << "\tleft_image " << MiscUtils::cvmat_info( left_image ) << endl; )
 
             string imright_fname = base_path+"/cerebro_stash/right_image__" + std::to_string(stamp.toNSec()) + ".jpg";
             cout << "\tload imright_fname: " << imright_fname << endl;
@@ -297,7 +305,7 @@ public:
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tright_image " << MiscUtils::cvmat_info( right_image ) << endl;
+            _retrive_debug_( cout << "\tright_image " << MiscUtils::cvmat_info( right_image ) << endl; )
 
 
             // make a depth map
@@ -325,13 +333,13 @@ public:
             #else
             // Direct Load depth
             string depth_image_fname = base_path+"/cerebro_stash/depth_image__" + std::to_string(stamp.toNSec()) + ".jpg.png";
-            cout << "\tload depth_image_fname: " << depth_image_fname << endl;
+            _retrive_debug_( cout << "\tload depth_image_fname: " << depth_image_fname << endl; )
             cv::Mat depth_image = cv::imread( depth_image_fname, -1 );
             if( !depth_image.data ) {
                 cout << TermColor::RED() << "[retrive_data_from_json_datanode]ERROR cannot load depth-image...return false\n" << TermColor::RESET();
                 return false;
             }
-            cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl;
+            _retrive_debug_( cout << "\tdepth_image " << MiscUtils::cvmat_info( depth_image ) << endl; )
             depth_map = depth_image;
             #if 0
             depth_image.convertTo( depth_map, CV_32FC1 , 1.0/1000. );
@@ -379,7 +387,7 @@ public:
             cout << TermColor::iRED() << "..........SAVE TO FILE DONE...............\n" << TermColor::RESET() << endl;
             #endif
 
-        cout << TermColor::GREEN() << "[retrive_data_from_json_datanode]DONE t=" << data_node["stampNSec"] << TermColor::RESET() << endl;
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_data_from_json_datanode]DONE t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
         return true;
     }
 

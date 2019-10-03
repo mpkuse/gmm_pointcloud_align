@@ -21,8 +21,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 
-find_package(Theia REQUIRED)
-include_directories(${THEIA_INCLUDE_DIRS})
+#find_package(Theia REQUIRED)
+#include_directories(${THEIA_INCLUDE_DIRS})
 
 
 
@@ -37,6 +37,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 find_package(Eigen3)
 find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem)
+
+find_package(Ceres REQUIRED)
+include_directories(  ${CERES_INCLUDE_DIRS} )
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -338,7 +341,7 @@ target_link_libraries( test_objloader
      target_link_libraries( local_ptcloud2
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
-        ${THEIA_LIBRARIES}
+        #${THEIA_LIBRARIES}
       )
 
 

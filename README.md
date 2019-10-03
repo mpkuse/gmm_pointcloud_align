@@ -34,6 +34,10 @@
 - OpenGR: A C++ library for 3D Global Registration, 2017
 - Yue Pan et al. "GH-ICP：Iterative Closest Point algorithm with global optimal matching and hybrid metric" 3DV2018
 - A  Comparison  of Four  Algorithms  forEstimating  3-D Rigid  Transformations, BMVC1995 (closed form 3d align SVD, 4 algos compared, especially see section 2.1)
+        - Arun et al. "Least-Squares  Fitting  of  Two  3-D  PointSets", TPAMI1987
+        - Horn et al. "Closed-form  Solution  of  AbsoluteOrientation  Using  Orthonormal  Matrices", JOSA1988
+        - Horn et al. "Closed-form  Solution  of Absolute  Orientation  using  Unit  Quaternions", JOSA87
+        - Walker "Estimating  3-D  Location  Parameters  UsingDual  Number  Quaternions", CVGIP1991 
 - Park, Q.-Y. Zhou, and V. Koltun, Colored Point Cloud Registration Revisited, ICCV, 2017.
 
 ## Pointcloud datasets
@@ -42,4 +46,4 @@
 
 ## Pointcloud 3D Feature Coreespndence
 - https://github.com/chrischoy/FCGF ICCV2019
-- FPFH 
+- FPFH

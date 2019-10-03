@@ -152,11 +152,14 @@ int MiscUtils::total_true( const vector<bool>& V )
     return s;
 }
 
+// #define __MiscUtils___gather( msg ) msg;
+#define __MiscUtils___gather( msg ) ;
 void MiscUtils::gather( const vector<MatrixXd>& mats, const vector<  vector<bool> >& valids, MatrixXd& dst )
 {
+    __MiscUtils___gather(
     cout << "-----------MiscUtils::gather()\n";
 
-    cout << "mats.size = " << mats.size() << "\tvalids.size=" << valids.size() << endl;
+    cout << "mats.size = " << mats.size() << "\tvalids.size=" << valids.size() << endl;)
     assert( mats.size() == valids.size() && mats.size() > 0 );
     int ntotalvalids = 0;
     for( int i=0 ; i<(int)mats.size() ; i++ )
@@ -169,10 +172,11 @@ void MiscUtils::gather( const vector<MatrixXd>& mats, const vector<  vector<bool
         }
         ntotalvalids += nvalids;
 
+        __MiscUtils___gather(
         cout << "i=" << i << "\tmats[i]=" << mats[i].rows() << "x" << mats[i].cols() << "\t";
-        cout << "valids.size=" << valids[i].size() << " " << "nvalids=" << nvalids << endl;
+        cout << "valids.size=" << valids[i].size() << " " << "nvalids=" << nvalids << endl;)
     }
-    cout << "ntotalvalids=" << ntotalvalids << endl;
+    __MiscUtils___gather( cout << "ntotalvalids=" << ntotalvalids << endl; )
 
 
     dst = MatrixXd::Zero( mats[0].rows() , ntotalvalids );
@@ -189,7 +193,7 @@ void MiscUtils::gather( const vector<MatrixXd>& mats, const vector<  vector<bool
     }
     assert( c == ntotalvalids );
 
-    cout << "-----------END MiscUtils::gather()\n";
+    __MiscUtils___gather( cout << "-----------END MiscUtils::gather()\n"; )
 }
 
 void MiscUtils::plot_point_sets( const cv::Mat& im, const MatrixXd& pts_set, cv::Mat& dst,
