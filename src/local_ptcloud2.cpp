@@ -341,9 +341,13 @@ void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& sta
 //      STATE: The loaded json file (can be obtained from checkpoint of cerebro)
 //      idx0, idx1 : Index0, Index1. These indices will be looked up from STATE.
 //      uv_a, uv_b [Output] : 2d point. xy (ie. col, row) in image plane. 3xN
+//      d_a, d_b [Output] : The depth values at the image correspondences. These will be z as seen in the camera frame of reference.
+//                          it will be simply a lookup of depth image at the correspondences.
+//      sf [Output]: will be 0 at bad or non existing depth values, will be 1 at good depth values
 bool image_correspondences( const json& STATE, XLoader& xloader,
     int idx_a, int idx_b,
-    MatrixXd& uv_a, MatrixXd& uv_b )
+    MatrixXd& uv_a, MatrixXd& uv_b,
+    VectorXd& d_a, VectorXd& d_b, VectorXd& sf )
 {
     // -- Retrive Image Data
     json data_node_a = STATE["DataNodes"][idx_a];
@@ -409,6 +413,64 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     cv::resize(dst_matcher, dst_matcher, cv::Size(), 0.5, 0.5);
     cv::imshow( "GMSMatcher", dst_matcher );
     #endif
+
+    // --- Depth lookup at correspondences
+    #if 1
+
+    float near = 0.5;
+    float far = 4.5;
+    d_a = VectorXd::Zero( uv_a.cols() );
+    d_b = VectorXd::Zero( uv_b.cols() );
+    assert( uv_a.cols() == uv_b.cols() && uv_a.cols() > 0 );
+    sf = VectorXd::Zero( uv_a.cols() );
+    for( int i=0 ; i<uv_a.cols() ; i++ )
+    {
+        float depth_val_a;
+        {
+            if( depth_a.type() == CV_16UC1 ) {
+                depth_val_a = .001 * depth_a.at<uint16_t>( uv_a(1,i), uv_a(0,i) );
+            }
+            else if( depth_a.type() == CV_32FC1 ) {
+                // just assuming the depth values are in meters when CV_32FC1
+                depth_val_a = depth_a.at<float>( uv_a(1,i), uv_a(0,i) );
+            }
+            else {
+                assert( false );
+                cout << "[image_correspondences_xgfru]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                exit(1);
+            }
+        }
+
+        float depth_val_b;
+        {
+            if( depth_b.type() == CV_16UC1 ) {
+                depth_val_b = .001 * depth_b.at<uint16_t>( uv_b(1,i), uv_b(0,i) );
+            }
+            else if( depth_b.type() == CV_32FC1 ) {
+                // just assuming the depth values are in meters when CV_32FC1
+                depth_val_b = depth_b.at<float>( uv_b(1,i), uv_b(0,i) );
+            }
+            else {
+                assert( false );
+                cout << "[image_correspondences_xgfru]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                exit(1);
+            }
+        }
+
+        d_a( i ) = (double) depth_val_a;
+        d_b( i ) = (double) depth_val_b;
+        if( depth_val_a > near && depth_val_a < far
+            &&
+            depth_val_b > near && depth_val_b < far )
+        {
+            sf( i ) = 1.0;
+        } else
+            sf(i) = 0.0;
+    }
+    #endif
+
+    int nvalids = (int) sf.sum();
+    cout << TermColor::YELLOW() << "Of the total " << uv_a.cols() << " point-matches, only " << nvalids << " had good depths\n" << TermColor::RESET();
     return true;
 }
 
@@ -536,8 +598,9 @@ void print_usage( cv::Mat& status )
     msg += "z,x,c,v....: step by 10, the the idx_ptr;";
     msg += "q,w,e,r.....: Process the series;";
     msg += "n: fork new idx_ptr, m: new idx_ptr from 0;";
-    msg += "1:Draw random image pair, map point feature to surfels;";
-    msg += "2:viz 3d model normals;";
+    msg += "1: Draw random image pair, map point feature to 3dpoints; 3d3dalign";
+    msg += "2: align3d3d with depth refinement;";
+    msg += "9:viz 3d model normals;";
     msg += "ESC: quit;";
     MiscUtils::append_status_image( status, msg, .45, cv::Scalar(0,0,0), cv::Scalar(255,255,255) );
 
@@ -717,7 +780,7 @@ int main( int argc, char ** argv )
             MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * _w_X; // 3d points in this series's 1st camera ref frame
             // cout << "__p\n" << __p << endl;
 
-             vec_surf_map[ seriesI ]->print_persurfel_info( 1 );
+            //  vec_surf_map[ seriesI ]->print_persurfel_info( 1 );
 
             //------------ END Wang Kaixuan's Dense Surfel Mapping -------------------//
 
@@ -763,7 +826,7 @@ int main( int argc, char ** argv )
         } // end if( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' )
 
 
-        if( ch == '1' ) // basic ICP on surfelmap[0] and surfelmap[1]
+        if( ch == '1' ) // Draw random image pair, map point feature to 3dpoints; 3d3dalign
         {
             cout << TermColor::BLUE() << "1 pressed PROCESS" << TermColor::RESET() << endl;
             assert( all_i.size() >= 2 );
@@ -873,8 +936,99 @@ int main( int argc, char ** argv )
 
         }
 
+        if( ch == '2' ) // align3d3d with depth refinement
+        {
+            cout << TermColor::BLUE() << "2 pressed PROCESS" << TermColor::RESET() << endl;
+            assert( all_i.size() >= 2 );
+            cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
+            cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
 
-        if( ch == '2' ) // visualization for normals of a point cloud
+
+            // draw random image pairs
+            for( int rand_itr = 0 ; ; rand_itr++ )
+            {
+                cout << "\n-----------------------\n";
+                cout << "--- rand_itr=" << rand_itr ;
+                cout << "\n-----------------------\n\n";
+
+                int seriesID_a = 0; //< the series number of the 2 sequences in question
+                int seriesID_b = 1;
+
+                int _a = random_in_range( 0, (int)all_i[seriesID_a].size() ); //< an image in the series a
+                int _b = random_in_range( 0, (int)all_i[seriesID_b].size() ); //< an image in the series a
+
+                int idx_a = all_i[seriesID_a][_a]; //<< global image index
+                int idx_b = all_i[seriesID_b][_b];
+
+                // --- Image Correspondences
+                MatrixXd uv_a, uv_b;
+                VectorXd d_a, d_b, sf; //depth values at correspondences, same N as uv_a
+                bool status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf ); //there is an imshow in this
+                if( status == false ) {
+                    cout << TermColor::RED() << "image_correspondences returned false, skip this sample\n" << TermColor::RESET();
+                    continue;
+                }
+
+
+                // --- Change co-ordinates
+                //      express the normalized co-ordinates in world ref frame, so as to allow for the accumulation
+                Matrix4d wTa, wTb;
+                wTa = all_odom_poses[seriesID_a][_a];
+                wTb = all_odom_poses[seriesID_b][_b];
+
+
+
+                // MatrixXd uv_a_normalized = MatrixXd::Zero( 3, uv_a.cols() );
+                // MatrixXd uv_b_normalized = MatrixXd::Zero( 3, uv_b.cols() );
+                MatrixXd uv_a_normalized = MatrixXd::Constant( 4, uv_a.cols(), 1.0 );
+                MatrixXd uv_b_normalized = MatrixXd::Constant( 4, uv_b.cols(), 1.0 );
+                // uv_a_normalized = K.inverse() * uv_a ; uv_b_normalized := K.inverse() * uv_b ;
+                for( int k=0 ; k<uv_a.cols() ; k++ )
+                {
+                    Vector3d _0P;
+                    xloader.left_camera->liftProjective( uv_a.col(k).topRows(2), _0P  );
+                    uv_a_normalized.col(k).topRows(3) = d_a(k) * _0P;
+
+                    Vector3d _1P;
+                    xloader.left_camera->liftProjective( uv_b.col(k).topRows(2), _1P  );
+                    uv_b_normalized.col(k).topRows(3) = d_b(k) * _1P;
+                }
+
+
+
+
+                vector<bool> valids;
+                for( int k=0 ; k<sf.size() ; k++ )
+                    if( sf(k) > 0.9999 )
+                        valids.push_back(true);
+                    else
+                        valids.push_back(false);
+                MatrixXd sa_c0_X = (all_odom_poses[seriesID_a][0].inverse() * wTa) * uv_a_normalized;
+                MatrixXd sb_c0_X = (all_odom_poses[seriesID_b][0].inverse() * wTb) * uv_b_normalized;
+                visualization_msgs::Marker l_mark;
+                RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
+                l_mark.scale.x *= 0.5;
+                l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
+                marker_pub.publish( l_mark );
+
+
+                // --- Wait Key
+                cout << "press `p` for pose computation, press `b` to break, press any other key to keep drawing more pairs\n";
+                char ch = cv::waitKey(0) & 0xEFFFFF;
+                if( ch == 'b' )
+                    break;
+
+                if( ch == 'p' )
+                {
+                    cout << "NOT IMPLEMENTED...QUIT\n";
+                    exit(5);
+                }
+
+            }
+
+        }
+
+        if( ch == '9' ) // visualization for normals of a point cloud
         {
             assert( vec_surf_map.size() > 0 );
             cout << TermColor::GREEN() << "==== Viz Normals ====\n" << TermColor::RESET();
