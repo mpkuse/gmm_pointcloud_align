@@ -70,6 +70,7 @@ public:
     static bool read_eigen_matrix( string filename, Matrix4d& result );
     static bool read_eigen_matrix( string filename, Matrix3d& result );
     static bool read_eigen_matrix( string filename, VectorXi& result );
+    static bool read_eigen_matrix( string filename, VectorXd& result );
 
     ///< read the flat vector ary as a rowmajor matrix.
     /// [ 1, 2, 3, 4,5,6...,16 ] ==> [ [1,2,3,4], [5,6,7,8], [9,10,11,12], [13,14,15,16] ]

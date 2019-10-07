@@ -55,6 +55,12 @@ public:
     // eg. say the valids look  like [ [11101], [000101111], [11111111100] ] will return only 3d points with valids as 1
     static void gather( const vector<MatrixXd>& mats, const vector<  vector<bool> >& valids, MatrixXd& dst );
 
+    // Given multiple mats (in the vector) each of size 3xN, 3xN2, ... (cols need to be same for each item)
+    static void gather( const vector<MatrixXd>& mats, MatrixXd& dst );
+
+    // N1x1, N2x1, .... (each VectorXd can be of different sizes, will be conatenated as a big vector)
+    static void gather( const vector<VectorXd>& mats, VectorXd& dst );
+
     static int total_true( const vector<bool>& V );
     //---------------------------- Conversions ---------------------------------//
 

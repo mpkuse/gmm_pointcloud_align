@@ -336,6 +336,79 @@ void print_surfelmaps_status( const map< int, SurfelMap* > vec_map, cv::Mat& sta
 }
 
 
+// this function will take in aX_sans_depth (the normalized image co-ordinates). The 3d points (ie. normalized image
+// co-ordinates) are in same co-ordinate system, ie. appropriate rotation matrux are already multiplied to it.
+//
+void viz_pointfeature_matches( const ros::Publisher& marker_pub,
+    MatrixXd& aX_sans_depth, VectorXd& d_a, MatrixXd& bX_sans_depth, VectorXd& d_b, VectorXd& sf,
+const string ns, float red, float green, float blue, int id=0 )
+{
+    assert( aX_sans_depth.rows() == 3 || aX_sans_depth.rows() == 4 );
+    assert( bX_sans_depth.rows() == 3 || bX_sans_depth.rows() == 4 );
+    int N = aX_sans_depth.cols();
+    assert( aX_sans_depth.cols() == N && d_a.size() == N && bX_sans_depth.cols() == N && d_b.size() == N && sf.size() == N);
+
+    cout << "[viz_pointfeature_matches] ns=" << ns << "\t";
+    cout << "r,g,b=" << red << "," << green << "," << blue << endl;
+    cout << TermColor::iWHITE() << "---" << TermColor::RESET() << endl;
+    cout << "aX_sans_depth:\n" << aX_sans_depth.leftCols(10) << endl;
+    cout << "bX_sans_depth:\n" << bX_sans_depth.leftCols(10) << endl;
+    cout << TermColor::CYAN() ;
+    cout << "d_a:\t" << d_a.topRows(10).transpose() << endl;
+    cout << "d_b:\t" << d_b.topRows(10).transpose() << endl;
+    cout << "sf:\t" << sf.topRows(10).transpose() << endl;
+    cout << TermColor::RESET();
+
+    MatrixXd sa_c0_X, sb_c0_X;
+    sa_c0_X = MatrixXd::Constant( 4, aX_sans_depth.cols(), 1.0 );
+    sb_c0_X = MatrixXd::Constant( 4, bX_sans_depth.cols(), 1.0 );
+    for( int r=0 ; r<3; r++ )
+        sa_c0_X.row(r) = aX_sans_depth.row(r).cwiseProduct( d_a.transpose() );
+
+    for( int r=0 ; r<3; r++ )
+        sb_c0_X.row(r) = bX_sans_depth.row(r).cwiseProduct( d_b.transpose() );
+
+    vector<bool> valids;
+    for( int k=0 ; k<sf.size() ; k++ )
+        if( sf(k) > 0.5 )
+            valids.push_back(true);
+        else
+            valids.push_back(false);
+
+    visualization_msgs::Marker l_mark;
+    RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
+    l_mark.scale.x *= 0.5;
+    l_mark.ns = ns ; //"pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
+    l_mark.id = id;
+    l_mark.color.r = red;l_mark.color.g = green;l_mark.color.b = blue;
+
+    marker_pub.publish( l_mark );
+    cout << "[viz_pointfeature_matches] FINISHED\n";
+
+}
+
+#if 0
+void viz_pose_with_surfelmap( const ros::Publisher& marker_pub,
+    MatrixXd& aX, MatrixXd& bX, Matrix4d& a_T_b )
+{
+
+    RosPublishUtils::publish_3d( marker_pub, AAA,
+        "AAA (yellow)", 0,
+        255,255,0, float(1.0), 1.5 );
+
+    MatrixXd BBB = all_odom_poses[ seriesID_b ][0].inverse() * vec_surf_map[ seriesID_b ]->get_surfel_positions();
+    RosPublishUtils::publish_3d( marker_pub, BBB,
+        "BBB (green)", 0,
+        0,255,0, float(1.0), 1.5 );
+
+    MatrixXd YYY = a_T_b * BBB;
+    RosPublishUtils::publish_3d( marker_pub, YYY,
+        "a_T_b x BBB (cyan)", 0,
+        0,255,255, float(1.0), 1.5 );
+}
+#endif
+
+
 // Given the json state, and the index of 2 images , gives the image correspondences
 // and the 3d points of those correspondences
 //      STATE: The loaded json file (can be obtained from checkpoint of cerebro)
@@ -689,7 +762,16 @@ int main( int argc, char ** argv )
             #endif
 
             string win_name = "left_image_series#"+to_string( i );
+
+            #if 1
+            // show resized
+            cv::Mat left_image_resize;
+            cv::resize(left_image, left_image_resize, cv::Size(), 0.5, 0.5);
+            cv::imshow( win_name.c_str(), left_image_resize );
+            #else
+            // show original
             cv::imshow( win_name.c_str(), left_image );
+            #endif
         }
 
 
@@ -909,8 +991,8 @@ int main( int argc, char ** argv )
 
                     // Pose Computation
                     Matrix4d a_T_b = Matrix4d::Identity();
-                    // PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
-                    PoseComputation::align3D3DWithRefinement( dst0, dst1, a_T_b );
+                    PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    PoseComputation::refine( dst0, dst1, a_T_b );
                     cout << "a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
 
                     MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
@@ -939,20 +1021,27 @@ int main( int argc, char ** argv )
         if( ch == '2' ) // align3d3d with depth refinement
         {
             cout << TermColor::BLUE() << "2 pressed PROCESS" << TermColor::RESET() << endl;
+            int seriesID_a = 0; //< the series number of the 2 sequences in question
+            int seriesID_b = 1;
             assert( all_i.size() >= 2 );
-            cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
-            cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
+            cout << "series#0: " << *(all_i[seriesID_a].begin()) << " --> " << *(all_i[seriesID_a].rbegin()) << endl;
+            cout << "series#1: " << *(all_i[seriesID_b].begin()) << " --> " << *(all_i[seriesID_b].rbegin()) << endl;
 
 
             // draw random image pairs
+            vector<VectorXd> all_d_a;
+            vector<VectorXd> all_d_b;
+            vector<VectorXd> all_sf;
+            vector<MatrixXd> all_aX_sans_depth;
+            vector<MatrixXd> all_bX_sans_depth;
+
+
             for( int rand_itr = 0 ; ; rand_itr++ )
             {
                 cout << "\n-----------------------\n";
                 cout << "--- rand_itr=" << rand_itr ;
                 cout << "\n-----------------------\n\n";
 
-                int seriesID_a = 0; //< the series number of the 2 sequences in question
-                int seriesID_b = 1;
 
                 int _a = random_in_range( 0, (int)all_i[seriesID_a].size() ); //< an image in the series a
                 int _b = random_in_range( 0, (int)all_i[seriesID_b].size() ); //< an image in the series a
@@ -987,44 +1076,168 @@ int main( int argc, char ** argv )
                 {
                     Vector3d _0P;
                     xloader.left_camera->liftProjective( uv_a.col(k).topRows(2), _0P  );
-                    uv_a_normalized.col(k).topRows(3) = d_a(k) * _0P;
+                    uv_a_normalized.col(k).topRows(3) = _0P;
+                    uv_a_normalized(3,k) = (abs(d_a(k)) > 1e-6) ? (1.0/d_a(k)) : -1.0 ; //this is needed when you want to transform the 3d points with camera poses and multiply the depth at the end.
+
 
                     Vector3d _1P;
                     xloader.left_camera->liftProjective( uv_b.col(k).topRows(2), _1P  );
-                    uv_b_normalized.col(k).topRows(3) = d_b(k) * _1P;
+                    uv_b_normalized.col(k).topRows(3) = _1P;
+                    uv_b_normalized(3,k) = ( d_b(k) > 1e-6 )?( 1.0/d_b(k) ): -1.0;
                 }
 
+                MatrixXd aX_sans_depth = all_odom_poses[seriesID_a][0].inverse() * wTa * uv_a_normalized;
+                MatrixXd bX_sans_depth = all_odom_poses[seriesID_b][0].inverse() * wTb * uv_b_normalized;
 
 
+                all_d_a.push_back( d_a );
+                all_d_b.push_back( d_b );
+                all_sf.push_back( sf );
+                all_aX_sans_depth.push_back( aX_sans_depth );
+                all_bX_sans_depth.push_back( bX_sans_depth );
 
-                vector<bool> valids;
-                for( int k=0 ; k<sf.size() ; k++ )
-                    if( sf(k) > 0.9999 )
-                        valids.push_back(true);
-                    else
-                        valids.push_back(false);
-                MatrixXd sa_c0_X = (all_odom_poses[seriesID_a][0].inverse() * wTa) * uv_a_normalized;
-                MatrixXd sb_c0_X = (all_odom_poses[seriesID_b][0].inverse() * wTb) * uv_b_normalized;
-                visualization_msgs::Marker l_mark;
-                RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
-                l_mark.scale.x *= 0.5;
-                l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
-                marker_pub.publish( l_mark );
+
 
 
                 // --- Wait Key
-                cout << "press `p` for pose computation, press `b` to break, press any other key to keep drawing more pairs\n";
+                cout << "press `c` for custom compute, press `p` for pose computation, press `b` to break, press any other key to keep drawing more pairs\n";
                 char ch = cv::waitKey(0) & 0xEFFFFF;
                 if( ch == 'b' )
                     break;
 
+                    #if 0
+                if( ch == 'p' )
+                {   // print and publish
+                    if( aX_sans_depth.cols() > 10 ) {
+                    #if 1
+                    cout << TermColor::iWHITE() << "---" << TermColor::RESET() << endl;
+                    cout << "aX_sans_depth:\n" << aX_sans_depth.leftCols(10) << endl;
+                    cout << "bX_sans_depth:\n" << bX_sans_depth.leftCols(10) << endl;
+                    cout << TermColor::CYAN() ;
+                    cout << "d_a:\t" << d_a.topRows(10).transpose() << endl;
+                    cout << "d_b:\t" << d_b.topRows(10).transpose() << endl;
+                    cout << "sf:\t" << sf.topRows(10).transpose() << endl;
+                    cout << TermColor::RESET();
+
+                    MatrixXd sa_c0_X, sb_c0_X;
+                    sa_c0_X = MatrixXd::Constant( 4, aX_sans_depth.cols(), 1.0 );
+                    sb_c0_X = MatrixXd::Constant( 4, bX_sans_depth.cols(), 1.0 );
+
+                    for( int r=0 ; r<4; r++ )
+                        sa_c0_X.row(r) = aX_sans_depth.row(r).cwiseProduct( d_a.transpose() );
+
+                    for( int r=0 ; r<4; r++ )
+                        sb_c0_X.row(r) = bX_sans_depth.row(r).cwiseProduct( d_b.transpose() );
+
+                    cout << "---\n";
+                    cout << "sa_c0_X:\n" << sa_c0_X.leftCols(10) << endl;
+                    cout << "sb_c0_X:\n" << sb_c0_X.leftCols(10) << endl;
+                    cout << TermColor::iWHITE() << "---" << TermColor::RESET() << endl;
+
+
+                    #if 1
+                    // publish lines (of correspondences)
+                    vector<bool> valids;
+                    for( int k=0 ; k<sf.size() ; k++ )
+                        if( sf(k) > 0.9999 )
+                            valids.push_back(true);
+                        else
+                            valids.push_back(false);
+
+                    visualization_msgs::Marker l_mark;
+                    RosMarkerUtils::init_line_marker( l_mark, sa_c0_X, sb_c0_X , valids);
+                    l_mark.scale.x *= 0.5;
+                    l_mark.ns = "pt matches"+to_string(idx_a)+"<->"+to_string(idx_b)+";nvalids="+to_string( MiscUtils::total_true( valids ) );
+                    marker_pub.publish( l_mark );
+                    #endif
+
+                    #endif
+                    } else cout << "WARN, i didnt publish because less than 10 point-features\n";
+                }
+                    #endif
+
                 if( ch == 'p' )
                 {
-                    cout << "NOT IMPLEMENTED...QUIT\n";
-                    exit(5);
+                    cout << TermColor::GREEN() << "---p pressed, process 3dpts_sans_depth and depths, alternately optimize the pose and correct the depths\n" << TermColor::RESET();
+
+                    // gather input :
+                    //      all_d_a, all_d_b, all_sf, all_aX_sans_depth, all_bX_sans_depth
+                    VectorXd dst_d_a, dst_d_b, dst_sf;
+                    MatrixXd dst_aX_sans_depth, dst_bX_sans_depth;
+                    MiscUtils::gather( all_d_a, dst_d_a );
+                    MiscUtils::gather( all_d_b, dst_d_b );
+                    MiscUtils::gather( all_sf, dst_sf );
+                    MiscUtils::gather( all_aX_sans_depth, dst_aX_sans_depth );
+                    MiscUtils::gather( all_bX_sans_depth, dst_bX_sans_depth );
+
+                    #if 1
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/dst_d_a.txt", dst_d_a );
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/dst_d_b.txt", dst_d_b );
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/dst_sf.txt", dst_sf );
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/dst_aX_sans_depth.txt", dst_aX_sans_depth );
+                    RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/dst_bX_sans_depth.txt", dst_bX_sans_depth );
+                    #endif
+
+
+                    cout << "gather: all_* --> dst_*\n";
+                    cout << "dst_d_a.size=" << dst_d_a.size() << "\t";
+                    cout << "dst_d_b.size=" << dst_d_b.size() << "\t";
+                    cout << "dst_sf.size=" << dst_sf.size() << "\t";
+                    cout << "dst_aX_sans_depth.rows.cols=" << dst_aX_sans_depth.rows() << "x" << dst_aX_sans_depth.cols() << "\t";
+                    cout << "dst_bX_sans_depth.rows.cols=" << dst_bX_sans_depth.rows() << "x" << dst_bX_sans_depth.cols() << "\t";
+                    cout << endl;
+                    for( int g=0 ; g<all_sf.size() ; g++ )
+                        cout << "\t\t[" << g << "] " << all_sf[g].size() << endl;
+
+                    // optimize pose (aTb) while keeping depths as constant
+                    Matrix4d a_T_b;
+                    PoseComputation::closedFormSVD( dst_aX_sans_depth, dst_d_a, dst_bX_sans_depth, dst_d_b,  dst_sf, a_T_b  );
+                    cout << "[main] closed form (with weights) a_T_b=" << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+
+
+                    viz_pointfeature_matches( marker_pub,
+                        dst_aX_sans_depth, dst_d_a, dst_bX_sans_depth, dst_d_b,  dst_sf,
+                        "pf-matches before opt(pink)", 199./255., 21./255., 133./255.
+                    );
+
+
+                    // optimize depths while keeping pose (aTb) as constant
+                    PoseComputation::refine( dst_aX_sans_depth, dst_d_a, dst_bX_sans_depth, dst_d_b,  dst_sf, a_T_b, false, true, true  );
+                    PoseComputation::refine( dst_aX_sans_depth, dst_d_a, dst_bX_sans_depth, dst_d_b,  dst_sf, a_T_b, true,  false, true  );
+
+                    viz_pointfeature_matches( marker_pub,
+                        dst_aX_sans_depth, dst_d_a, dst_bX_sans_depth, dst_d_b,  dst_sf,
+                        "pf-matches after opt(orange)", 1.0, 0.5, 0.0
+                    );
+
+                    // viz the results
+                    {
+                                        MatrixXd AAA = all_odom_poses[ seriesID_a ][0].inverse() * vec_surf_map[ seriesID_a ]->get_surfel_positions();
+                                        RosPublishUtils::publish_3d( marker_pub, AAA,
+                                            "AAA (yellow)", 0,
+                                            255,255,0, float(1.0), 1.5 );
+
+                                        MatrixXd BBB = all_odom_poses[ seriesID_b ][0].inverse() * vec_surf_map[ seriesID_b ]->get_surfel_positions();
+                                        RosPublishUtils::publish_3d( marker_pub, BBB,
+                                            "BBB (green)", 0,
+                                            0,255,0, float(1.0), 1.5 );
+
+
+                                        MatrixXd YYY = a_T_b * BBB;
+                                        RosPublishUtils::publish_3d( marker_pub, YYY,
+                                            "a_T_b x BBB (cyan)", 0,
+                                            0,255,255, float(1.0), 1.5 );
+                    }
+
+
+                    cout << TermColor::GREEN() << "--- pose computation done...\n" << TermColor::RESET();
                 }
 
-            }
+
+
+            }  //for( rand_itr = 0 ; ; rand_itr++ )
+            cv::destroyWindow("GMSMatcher"); //close the imshow from image_correspondences()
+
 
         }
 

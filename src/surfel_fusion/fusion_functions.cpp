@@ -1579,7 +1579,7 @@ void FusionFunctions::generate_super_pixels()
         update_seeds();
     }
     calculate_norms();
-    debug_show();
+    // debug_show();
 }
 
 void FusionFunctions::debug_show()

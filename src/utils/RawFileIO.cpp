@@ -288,8 +288,58 @@ bool RawFileIO::read_eigen_matrix( string filename, VectorXi& result )
     // return result;
     __RawFileIO__write_image_debug_dm( cout << "\tshape=" << result.rows() << "x" << result.cols() << endl; )
     return true;
-};
+}
 
+
+bool RawFileIO::read_eigen_matrix( string filename, VectorXd& result )
+{
+    int cols = 0, rows = 0;
+    const int MAXBUFSIZE = ((int) 20000);
+    double buff[MAXBUFSIZE];
+
+    // Read numbers from file into buffer.
+    __RawFileIO__write_image_debug_dm( std::cout << "\033[1;32m"  << "read_eigen_matrix: "<< filename << "\033[0m" );
+    ifstream infile;
+    infile.open(filename);
+    if( !infile ) {
+        cout << "\n\033[1;31m" << "failed to open file " << filename << "\033[0m" << endl;
+        return false;
+    }
+    while (! infile.eof())
+        {
+        string line;
+        getline(infile, line);
+
+        int temp_cols = 0;
+        stringstream stream(line);
+        while(! stream.eof())
+            stream >> buff[cols*rows+temp_cols++];
+
+        if (temp_cols == 0)
+            continue;
+
+        if (cols == 0)
+            cols = temp_cols;
+
+        rows++;
+        }
+
+    infile.close();
+
+    rows--;
+
+    assert( cols==1 && "\n[RawFileIO::read_eigen_matrix( string filename, VectorXd& result )] The input file is not row-vector" );
+
+    // Populate matrix with numbers.
+    result = VectorXd::Zero(rows);
+    for (int i = 0; i < rows; i++)
+        for (int j = 0; j < cols; j++)
+            result(i,j) =  buff[ cols*i+j ];
+
+    // return result;
+    __RawFileIO__write_image_debug_dm( cout << "\tshape=" << result.rows() << "x" << result.cols() << endl; )
+    return true;
+}
 
 bool RawFileIO::read_eigen_matrix( const std::vector<double>& ary, Matrix4d& result )
 {
