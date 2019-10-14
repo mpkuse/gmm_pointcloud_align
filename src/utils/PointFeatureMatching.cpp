@@ -3,7 +3,8 @@
 // #define ___StaticPointFeatureMatching__point_feature_matches( msg ) msg;
 #define ___StaticPointFeatureMatching__point_feature_matches( msg ) ;
 void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
-                MatrixXd&u, MatrixXd& ud )
+            MatrixXd&u, MatrixXd& ud,
+            PointFeatureMatchingSummary& summary )
 {
     assert( !imleft_undistorted.empty() && !imright_undistorted.empty() );
 
@@ -20,6 +21,12 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
     cout << "descriptors shape : "<< descriptors1.rows << "x" << descriptors1.cols << "\t";
     cout << "descriptors shape : "<< descriptors2.rows << "x" << descriptors2.cols << endl;
     )
+
+    summary.feature_detector_type = "ORB";
+    summary.feature_descriptor_type = "ORB";
+    summary.n_keypoints = descriptors1.rows;
+    summary.n_descriptor_dimension = descriptors1.cols;
+
 
     #if 0
     cv::BFMatcher matcher(cv::NORM_HAMMING);
@@ -42,6 +49,8 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
         descriptors2.convertTo(descriptors2, CV_32F);
     }
     cv::FlannBasedMatcher matcher;
+    summary.matcher_type = "FlannBasedMatcher";
+
     std::vector< std::vector< cv::DMatch > > matches_raw;
     matcher.knnMatch( descriptors1, descriptors2, matches_raw, 2 );
     ___StaticPointFeatureMatching__point_feature_matches(
@@ -56,6 +65,7 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
     ___StaticPointFeatureMatching__point_feature_matches(
     cout << "# Retained (after lowe_ratio_test): "<< pts_1.size() << endl; // == pts_2.size()
     )
+    summary.n_keypoints_pass_ratio_test = pts_1.size();
 
 
     #if 0
@@ -78,11 +88,13 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
     cv::findFundamentalMat(pts_1, pts_2, cv::FM_RANSAC, 5.0, 0.99, status);
     assert( pts_2.size() == status.size() );
     int n_good = 0;
-    for( int k=0 ;k<status.size();k++)
+    for( int k=0 ;k<status.size();k++) {
         if( status[k] > 0 )
             n_good++;
+        }
     ___StaticPointFeatureMatching__point_feature_matches(
         cout << "....Only " << n_good << " points pass the F-test\n";)
+        summary.n_keypoints_pass_f_test = n_good; 
 
         //
         bool make_homogeneous = true;
@@ -101,6 +113,8 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
             }
         }
         assert( ck == n_good );
+
+
 
     ___StaticPointFeatureMatching__point_feature_matches(
     cout << "=== [StaticPointFeatureMatching::point_feature_matches] Finished\n";)

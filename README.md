@@ -37,8 +37,9 @@
         - Arun et al. "Least-Squares  Fitting  of  Two  3-D  PointSets", TPAMI1987
         - Horn et al. "Closed-form  Solution  of  AbsoluteOrientation  Using  Orthonormal  Matrices", JOSA1988
         - Horn et al. "Closed-form  Solution  of Absolute  Orientation  using  Unit  Quaternions", JOSA87
-        - Walker "Estimating  3-D  Location  Parameters  UsingDual  Number  Quaternions", CVGIP1991 
+        - Walker "Estimating  3-D  Location  Parameters  UsingDual  Number  Quaternions", CVGIP1991
 - Park, Q.-Y. Zhou, and V. Koltun, Colored Point Cloud Registration Revisited, ICCV, 2017.
+- Á. P. Bustos and T. J. Chin.  Guaranteed outlier removalfor point cloud registration with correspondences (GORE). TMAPI2018,  
 
 ## Pointcloud datasets
 -  ICL-NUIM dataset.: A Benchmark for {RGB-D} Visual Odometry, {3D} Reconstruction and {SLAM} ICRA2014

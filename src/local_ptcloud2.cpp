@@ -465,7 +465,8 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     cout << TermColor::GREEN() << "=== Point feature matcher (ORB) for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
 
     elp.tic();
-    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b );
+    PointFeatureMatchingSummary summary;
+    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b, summary );
     cout << TermColor::BLUE() << "StaticPointFeatureMatching::point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
 
 
@@ -599,11 +600,13 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
 
     #if 1
     // -- Simple ORB Matcher
-    cout << TermColor::GREEN() << "=== Point feature matcher (ORB) for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
+    cout << TermColor::GREEN() << "[image_correspondences] Simple ORB Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
 
     elp.tic();
-    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b );
-    cout << TermColor::BLUE() << "StaticPointFeatureMatching::point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+    PointFeatureMatchingSummary summary;
+    StaticPointFeatureMatching::point_feature_matches( image_a, image_b, uv_a, uv_b, summary );
+    summary.prettyPrint(1);
+    cout << TermColor::BLUE() << "[image_correspondences] StaticPointFeatureMatching::point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
 
 
     cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
@@ -639,7 +642,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     for( int i=0 ; i<valids.size() ; i++ )
         if( valids[i]  == true )
             nvalids++;
-    cout << TermColor::YELLOW() <<  "nvalids=" << nvalids << " of total=" << valids.size() << TermColor::RESET() << "\t";
+    cout << TermColor::YELLOW() <<  "nvalids_depths=" << nvalids << " of total=" << valids.size() << TermColor::RESET() << "\t";
 
     cout << "aX: " << aX.rows() << "x" << aX.cols() << "\t";
     cout << "bX: " << bX.rows() << "x" << bX.cols() << endl;
@@ -711,8 +714,22 @@ int main( int argc, char ** argv )
     //
     //
     vector<int> idx_ptr;
-    idx_ptr.push_back(730);
-    idx_ptr.push_back(2885);
+    #if 0
+    idx_ptr.push_back(0);
+    // idx_ptr.push_back(2885);
+    #else
+    if( argc > 1 )
+    {
+        cout << "argc = " << argc << endl;
+        for( int p=1 ; p<argc ; p++ ) {
+            cout << p << " : " << argv[p] << endl;
+            idx_ptr.push_back( std::stoi( argv[p] ) );
+        }
+        // exit(1);
+    } else {
+        idx_ptr.push_back(0);
+    }
+    #endif
 
     map<  int,  vector<int>         > all_i; //other vector to hold multiple sequences
     map<  int,  vector<Matrix4d>    > all_odom_poses;
@@ -920,6 +937,8 @@ int main( int argc, char ** argv )
             vector< vector<bool> > all_valids;
             // for( int k=0 ; k< 5 ; k++ )
             int rand_itr = 0;
+
+            std::map< std::pair<int,int>, bool > repeatl;
             while( true )
             {
                 cout << "\n-----------------------\n";
@@ -931,13 +950,20 @@ int main( int argc, char ** argv )
                 int _a = random_in_range( 0, (int)all_i[0].size() );
                 int _b = random_in_range( 0, (int)all_i[1].size() );
 
+                // is repeat? then skip
+                if( repeatl.count( std::make_pair(_a,_b) ) > 0 ) {
+                    cout << "I have a;lready seen _a=" << _a << ", _b=" << _b << "before...skip\n";
+                    continue;
+                }
+                repeatl[  std::make_pair(_a,_b)  ] = true;
+
                 int idx_a = all_i[0][_a];
                 int idx_b = all_i[1][_b];
 
 
                 // --- Image correspondences and 3d points from depth images
                 MatrixXd uv_a, uv_b, aX, bX;
-                vector<bool> valids;
+                vector<bool> valids; //< which point correspondences have good/valid depth values
                 bool status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, aX, bX, valids ); //there is an imshow in this
 
                 if( status == false ) {
@@ -989,11 +1015,46 @@ int main( int argc, char ** argv )
                     RawFileIO::write_EigenMatrix( "/app/catkin_ws/src/gmm_pointcloud_align/resources/pointsets/"+to_string(idx_a)+"-"+to_string(idx_b)+"__dst1.txt", dst1 );
                     #endif
 
-                    // Pose Computation
+                    #if 0
+                    // pose computation, closed form only - simple
                     Matrix4d a_T_b = Matrix4d::Identity();
                     PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
-                    PoseComputation::refine( dst0, dst1, a_T_b );
-                    cout << "a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+                    #endif
+
+                    #if 0
+                    // Pose Computation, alternate with closed form and iterative switch-constraint refinement.
+                    Matrix4d a_T_b = Matrix4d::Identity();
+                    PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    cout << "[main] after closedFormSVD a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+
+                    VectorXd switch_weights;
+                    for( int yuy=0; yuy<1 ; yuy++ ) {
+
+                    cout << TermColor::iWHITE() << "---- yuy=" << yuy << "----" << TermColor::RESET() << endl;
+                    PoseComputation::refine( dst0, dst1, a_T_b, switch_weights );
+                    cout << "[main] after refinement    a_T_b = " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+
+                    cout << TermColor::YELLOW() << "[main]Once again do closedFormSVD with weights (len=)" << switch_weights.size() << "\n" << TermColor::RESET();
+                    cout << "before weighted closed form : " << PoseManipUtils::prettyprintMatrix4d(a_T_b) << endl;
+                    PoseComputation::closedFormSVD( dst0, dst1, switch_weights, a_T_b );
+                    cout << "after  weighted closed form : " << PoseManipUtils::prettyprintMatrix4d(a_T_b) << endl;
+
+                    }
+                    PoseComputation::testTransform( dst0, dst1, a_T_b );
+                    #endif
+
+
+                    #if 1
+                    // pose computation,
+                    Matrix4d a_T_b = Matrix4d::Identity();
+                    // PoseComputation::closedFormSVD( dst0, dst1, a_T_b );
+                    VectorXd switch_weights = VectorXd::Constant( dst0.cols() , 1.0 );
+
+                    ElapsedTime al_tp;
+                    PoseComputation::alternatingMinimization( dst0, dst1, a_T_b, switch_weights );
+                    cout << TermColor::BLUE() << "[main] PoseComputation::alternatingMinimization took ms=" << al_tp.toc_milli() << endl;
+
+                    #endif
 
                     MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
                     RosPublishUtils::publish_3d( marker_pub, AAA,
@@ -1012,6 +1073,8 @@ int main( int argc, char ** argv )
                         0,255,255, float(1.0), 1.5 );
 
 
+                    cout << "\n pose computation done, press any key to continue drawing more pair of images\n";
+                    cv::waitKey(0);
                 }
             }
             cv::destroyWindow("GMSMatcher");
