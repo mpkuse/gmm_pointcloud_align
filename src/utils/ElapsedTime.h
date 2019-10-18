@@ -14,10 +14,24 @@ public:
         this->begin = std::chrono::steady_clock::now();
     }
 
+    ElapsedTime( const string msg ) {
+        // start timer
+        this->begin = std::chrono::steady_clock::now();
+        this->msg_string = msg;
+    }
+
+
     void tic() {
         // start timer
         this->begin = std::chrono::steady_clock::now();
     }
+
+    void tic( const string msg ) {
+        // start timer
+        this->begin = std::chrono::steady_clock::now();
+        this->msg_string = msg;
+    }
+
 
 
     int toc_milli() {
@@ -30,15 +44,21 @@ public:
         return (int) std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
     }
 
-    int toc( ) {
+    int toc_sec( ) {
         std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
         return (int) std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
     }
 
+    string toc()
+    {
+        auto ms = toc_milli();
+        return ":" + msg_string + ": ms=" + to_string(ms) + " ";
+    }
 
 
 private:
     std::chrono::steady_clock::time_point begin;
+    string msg_string = "";
 
 };
 

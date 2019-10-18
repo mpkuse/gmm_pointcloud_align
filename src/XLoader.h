@@ -188,6 +188,22 @@ bool retrive_image_data_from_json_datanode( json data_node,
     }
 
 
+    // return true if OK to retrive or returns false
+    bool is_data_available( json data_node  )
+    {
+        _retrive_info_( cout << TermColor::GREEN() << "[is_data_available]t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
+
+            int64_t t_sec = data_node["stampNSec"];
+            ros::Time stamp = ros::Time().fromNSec( t_sec );
+
+
+            // if wTc and image do not exist then return
+            if( data_node["isPoseAvailable"] == false || data_node["isKeyFrame"] == false ) {
+                // cout << "\t[retrive_image_data_from_json_datanode]no pose or image data...return false\n";
+                return false;
+            }
+            return true;
+    }
 
     bool retrive_image_data_from_json_datanode( json data_node,
         // ros::Time& stamp, Matrix4d& w_T_c,

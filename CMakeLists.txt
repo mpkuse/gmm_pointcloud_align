@@ -144,7 +144,7 @@ include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
-
+  ${OPENCV_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -293,6 +293,12 @@ add_executable( test_posecomputation
     src/PoseComputation.cpp
     )
 
+
+add_executable( test_lk_opticalflow
+    src/test_lk_opticalflow.cpp
+    ${KuseUtils}
+)
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -382,6 +388,13 @@ target_link_libraries( test_posecomputation
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
  )
+
+
+target_link_libraries( test_lk_opticalflow
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+ )
+
 
 #############
 ## Install ##

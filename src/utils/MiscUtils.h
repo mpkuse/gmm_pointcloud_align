@@ -30,6 +30,8 @@ using namespace std;
 class MiscUtils
 {
 public:
+    //---------------------------- INFO ---------------------------------//
+
     static string type2str(int type);
     static string cvmat_info( const cv::Mat& mat );
     static string imgmsg_info(const sensor_msgs::ImageConstPtr &img_msg);
@@ -51,6 +53,12 @@ public:
                                 bool make_homogeneous=true
                             );
 
+    // given a vector of Point2f will return a 2xN or 3xN matrix (if make_homogeneous=true).
+    static void point2f_2_eigen( const std::vector<cv::Point2f>& p, MatrixXd& dst, bool make_homogeneous=true );
+
+    // given an input eigen matrix of eithen 2xN or 3xN make this into vector<Point2f>.
+    static void eigen_2_point2f( const MatrixXd& inp, std::vector<cv::Point2f>& p );
+
     // Given multiple point sets `mats` each of sizes 3xN1, 3xN2, .... 3xNn and corresponding valids gather everything into dst
     // eg. say the valids look  like [ [11101], [000101111], [11111111100] ] will return only 3d points with valids as 1
     static void gather( const vector<MatrixXd>& mats, const vector<  vector<bool> >& valids, MatrixXd& dst );
@@ -64,6 +72,9 @@ public:
     static int total_true( const vector<bool>& V );
     //---------------------------- Conversions ---------------------------------//
 
+
+    //-------------------------------- IMSHOW ----------------------------------//
+    static void imshow( const string& win_name, const cv::Mat& m, float scale=1.0 );
 
 
     //--------------------- Plot Keypoints on Image ----------------------------//
@@ -91,6 +102,24 @@ public:
     static void plot_point_sets( const cv::Mat& im, const MatrixXd& pts_set, cv::Mat& dst,
                                             vector<cv::Scalar>& color_annotations, float alpha=0.8, const string& msg=string("N/A") );
 
+
+
+    // plot point set on image.
+    //  im : Input image
+    //  pts_set : 2xN or 3xN matrix with x,y in a col, in terms of image row and colidx this will be c,r.
+    //  status : same size as im, once with status[k] == false will not be plotted
+    //  dst [output]: output image
+    static void plot_point_sets_masked( const cv::Mat& im, const MatrixXd& pts_set, const vector<uchar>& status,
+            cv::Mat& dst,
+            const cv::Scalar& color, bool enable_keypoint_annotation = true, const string msg = "" );
+    static void plot_point_sets_masked( const cv::Mat& im, const MatrixXd& pts_set, const vector<bool>& status,
+            cv::Mat& dst,
+            const cv::Scalar& color, bool enable_keypoint_annotation = true, const string msg = "" );
+
+    static void plot_point_sets_masked( const cv::Mat& im, const MatrixXd& pts_set,
+            const VectorXd& status, double show_only_greater_than_this_value,
+            cv::Mat& dst,
+            const cv::Scalar& color, bool enable_keypoint_annotation = true, const string msg = "" );
     // END--------------------- Plot Keypoints on Image ----------------------------//
 
 

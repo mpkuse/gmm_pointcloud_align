@@ -731,9 +731,9 @@ int main( int argc, char ** argv )
     }
     #endif
 
+    // these maps are indexed by the sequenceID
     map<  int,  vector<int>         > all_i; //other vector to hold multiple sequences
     map<  int,  vector<Matrix4d>    > all_odom_poses;
-    map<  int,  vector<MatrixXd>    > all_sp_cX;
 
     // map< int, SurfelXMap* > vec_map;
     map< int, SurfelMap* > vec_surf_map;
@@ -853,7 +853,6 @@ int main( int argc, char ** argv )
 
                 all_i[ seriesI ] = vector<int>();
                 all_odom_poses[ seriesI ] = vector<Matrix4d>();
-                all_sp_cX[ seriesI ] = vector<MatrixXd>();
 
                 vec_surf_map[ seriesI ] = new SurfelMap( true );
             } else {
@@ -1304,6 +1303,162 @@ int main( int argc, char ** argv )
 
         }
 
+
+        if( ch == '3' ) //monocular
+        {
+            cout << TermColor::BLUE() << "3 pressed PROCESS" << TermColor::RESET() << endl;
+            assert( all_i.size() >= 2 );
+            cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
+            cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
+
+
+            // random pairs, image correspondences only
+            std::map< std::pair<int,int>, bool > repeatl;
+            for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
+            {
+                cout << "\n-----------------------\n";
+                cout << "--- rand_itr=" << rand_itr ;
+                cout << "\n-----------------------\n\n";
+
+                //-----
+                //--- Pick a random sample for each seq
+                //-----
+                int seriesID_a = 0; //< the series number of the 2 sequences in question
+                int seriesID_b = 1;
+
+                int _a = random_in_range( 0, (int)all_i[seriesID_a].size() );
+                int _b = random_in_range( 0, (int)all_i[seriesID_b].size() );
+                // is repeat? then skip
+                if( repeatl.count( std::make_pair(_a,_b) ) > 0 ) {
+                    cout << "I have a;lready seen _a=" << _a << ", _b=" << _b << "before...skip\n";
+                    continue;
+                }
+                repeatl[  std::make_pair(_a,_b)  ] = true;
+
+                int idx_a = all_i[seriesID_a][_a];
+                int idx_b = all_i[seriesID_b][_b];
+                cout << "I pick the pair with global idx_a="<< idx_a << "  idx_b=" << idx_b << endl;
+
+
+
+                //----
+                //--- Image Correspondences
+                //----
+                MatrixXd uv_a, uv_b;
+                VectorXd d_a, d_b, sf;
+                image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
+
+                vector<Point2f> pts_to_track;
+                MiscUtils::eigen_2_point2f( uv_a, pts_to_track );
+
+
+
+
+                //----
+                //--- Depth Estimation from Optical Flow and Triangulation. Will also use odometry poses
+                //----
+                //--Seq-A , A+1, A+2,...
+                {
+                cout << "Look at adjacent images of idx_a=" << idx_a << endl;
+                json data_node_a = STATE["DataNodes"][idx_a];
+                cv::Mat image_a;
+                Matrix4d w_T_al;
+                bool status_img  = xloader.retrive_image_data_from_json_datanode( data_node_a, image_a );
+                bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_a, w_T_al );
+                assert( status_img && status_pose );
+
+                // plot base image with points to track
+                cv::Mat dst_baseimg_with_feat_to_track;
+                MiscUtils::plot_point_sets(  image_a, uv_a, dst_baseimg_with_feat_to_track,
+                    cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_a)+ ") to track from n_pts="+to_string(uv_a.cols()) );
+                MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track,0.5 );
+
+
+                //next image in seq   ==>  track the points uv_a on idx_a+p
+                for( int  p=1 ; p<8 ; p++ )
+                {
+                    cout <<  "\tp=" << p << endl;
+                    json data_node_a__p = STATE["DataNodes"][idx_a+p];
+                    if( xloader.is_data_available(data_node_a__p) == false ) {
+                        cout << "\tno image or pose data so skip this p\n";
+                        continue;
+                    }
+
+                    cv::Mat image_a__p;
+                    Matrix4d w_T_al__p;
+                    bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_a__p, image_a__p );
+                    bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_a__p, w_T_al__p );
+                    assert( status_img__p && status_pose__p );
+
+
+                    //---- optical flow
+                    vector<Point2f> result_of_opticalflow = pts_to_track; //give it an initial guess
+                    vector<uchar> status;
+                    vector<float> err;
+                    cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 30, 0.01);
+                    cv::Size win_size = cv::Size(25,25);
+                    int n_pyramids = 4;
+
+                    cout << TermColor::GREEN() << "\tCalculate Optical Flow" << TermColor::RESET() << endl;
+                    cout << "\timage_a:" << MiscUtils::cvmat_info( image_a ) << endl;
+                    cout << "\timage_a__p:" << MiscUtils::cvmat_info( image_a__p ) << endl;
+                    cout << "\tpts_to_track.size=" << pts_to_track.size() << endl;
+                    cv::calcOpticalFlowPyrLK( image_a, image_a__p, pts_to_track, result_of_opticalflow,
+                             status, err, win_size, n_pyramids, criteria );
+
+                             int nfail = 0;
+                             for( int kk=0 ; kk<status.size() ; kk++ )
+                             {
+                                 if( status[kk] == 0 )
+                                     nfail++;
+                             }
+                             cout << "\t\tnfail=" << nfail << endl;
+                    cout << "\tshowing adjacent image to idx_a="<< idx_a << "@p=" << p << " pose=" << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << endl;
+                    MatrixXd eigen_result_of_opticalflow;
+                    cv::Mat dst_tracked;
+                    MiscUtils::point2f_2_eigen( result_of_opticalflow, eigen_result_of_opticalflow);
+                    MiscUtils::plot_point_sets_masked( image_a__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true, "idx_a="+to_string(idx_a)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
+                    MiscUtils::imshow( "dst_tracked", dst_tracked, 0.5 );
+
+
+                    //----- triangulate
+                    cout << TermColor::GREEN() << "\tTriangulate" << TermColor::RESET() << endl;
+                    cout << "\tw_T_al " << PoseManipUtils::prettyprintMatrix4d(w_T_al) << "\n";
+                    cout << "\tw_T_al__p " << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << "\n";
+                    Matrix4d al_T_al__p = w_T_al.inverse() * w_T_al__p;
+                    cout << "\tbaseline = " << al_T_al__p.col(3).topRows(3).norm() << endl;
+
+                    // loop over each point and triangulate it
+                    for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ )
+                    {
+                        if( status[mm] == 0 )
+                            continue;
+
+                        // convert to normalized image co-ordinates
+                        #if 0
+                        normed_uv_a__i = to_normalized_image_cords( uv_a.col(mm) );
+                        normed_tracked_uv_a__i = to_normalized_image_cords( eigen_result_of_opticalflow.col(mm) );
+                        triangulate( normed_uv_a.col(mm), w_T_al, normed_tracked_uv_a.col(mm), w_T_al__p );
+                        #endif
+                    }
+
+                    cv::waitKey(0);
+
+                }
+                cout << "loop on p ends\n";
+                cv::destroyWindow("dst_tracked");
+                cv::destroyWindow("dst_baseimg_with_feat_to_track");
+
+                }
+
+
+                //--Seq-B, B+1, B+2,...
+            }
+
+
+
+        }
+
         if( ch == '9' ) // visualization for normals of a point cloud
         {
             assert( vec_surf_map.size() > 0 );
@@ -1347,144 +1502,6 @@ int main( int argc, char ** argv )
         }
 
 
-        #if 0 // make this to 1 to use mpkuse's mapping implementation. not recommended
-        // process the idx_ptr - mpkuse surfel mapping implementation - bad
-        if( false && ( ch == 'q' || ch == 'w' || ch == 'e' || ch == 'r' ) )
-        {
-            int seriesI = 0;
-            switch (ch) {
-                case 'q':
-                seriesI = 0; break;
-                case 'w':
-                seriesI = 1; break;
-                case 'e':
-                seriesI = 2; break;
-                case 'r':
-                seriesI = 3; break;
-                default: assert( false );
-            }
-            assert( seriesI >= 0 && seriesI<idx_ptr.size() && "You choose to process a series for which the pointer doesnopt exist. The correct way is to press n to start a new pointer and then go by processing it\n" );
-
-            cout << TermColor::BLUE() << "Q PRESSED, PROCESS\n";
-            json data_node = STATE["DataNodes"][idx_ptr[seriesI]];
-
-
-            //--- SLIC
-            Matrix4d wTc;
-            MatrixXd sp_cX;
-            MatrixXd sp_uv;
-            cv::Mat left_image_i, depth_map_i;
-            cv::Mat viz_slic;
-
-            process_this_datanode( xloader, data_node, wTc, sp_cX, sp_uv, left_image_i, depth_map_i, viz_slic );
-
-            //--- Note this data (ie. output of slic)
-            if( all_i.count( seriesI ) == 0 ) {
-                // not found, so first in the sequence.
-                cout << ">>>This is the first element to be processed in seriesI=" <<seriesI << endl;
-
-                all_i[ seriesI ] = vector<int>();
-                all_odom_poses[ seriesI ] = vector<Matrix4d>();
-                all_sp_cX[ seriesI ] = vector<MatrixXd>();
-
-                vec_map[ seriesI ] = new SurfelXMap( xloader.left_camera );
-            } else {
-                cout << ">>>Number of elements processed in this seriesI=" << seriesI << " is : " << all_i[seriesI].size() << endl;
-            }
-            all_i[ seriesI ].push_back( idx_ptr[seriesI] );
-            all_odom_poses[ seriesI ].push_back( wTc );
-            all_sp_cX[ seriesI ].push_back( sp_cX ); //TODO: not needed
-
-
-            //--- viz
-            string win_name = "left_image_series#"+to_string( seriesI );
-            cv::imshow( win_name.c_str(), viz_slic );
-
-            cv::Scalar color = FalseColors::randomColor(seriesI);
-            MatrixXd sp_wX = all_odom_poses[ seriesI ][0].inverse() * wTc * sp_cX; //< w_T_c0 * w_T_ci * cX
-            RosPublishUtils::publish_3d( marker_pub, sp_wX,
-                "raw_pts"+to_string(seriesI), all_i[ seriesI ].size(),
-                float(color[2]),float(color[1]),float(color[0]), 0.4  );
-
-
-            visualization_msgs::Marker cam_viz_i;
-            cam_viz_i.ns = "cam_viz"+to_string(seriesI);
-            cam_viz_i.id = all_i[ seriesI ].size();
-            RosMarkerUtils::init_camera_marker( cam_viz_i, 4.0 );
-            Matrix4d c0_T_ci =  all_odom_poses[ seriesI ][0].inverse() * wTc;
-            RosMarkerUtils::setpose_to_marker( c0_T_ci, cam_viz_i  );
-            RosMarkerUtils::setcolor_to_marker( color[2]/255., color[1]/255., color[0]/255., 1.0, cam_viz_i );
-            marker_pub.publish( cam_viz_i );
-
-
-            #if 1
-            //---- SurfelFuse & Retrive
-            ElapsedTime t_fusesurfels; t_fusesurfels.tic();
-            vec_map[seriesI]->fuse_with( idx_ptr[seriesI],  wTc, sp_cX, sp_uv, left_image_i, depth_map_i );
-            cout << "fuse returned in (ms) " << t_fusesurfels.toc_milli() << endl;
-
-            MatrixXd __p = all_odom_poses[ seriesI ][0].inverse() * vec_map[seriesI]->surfelWorldPosition();
-
-
-            //---- viz : publish __p to rviz
-            #if 1 // fixed color regime
-            RosPublishUtils::publish_3d( marker_pub, __p,
-                "surfels"+to_string(vec_map.size()), 0,
-                float(color[2]), float(color[1]), float(color[0]), float(1.0), 2.0 );
-            #else
-            RosPublishUtils::publish_3d( marker_pub, __p,
-                "surfels"+to_string(vec_map.size()), 0,
-                1, -1, 5,
-                2.0 );
-            #endif
-            #endif
-
-
-            //--- waitkey (to show results)
-            cout << TermColor::iGREEN() << "Showing results, press <space> to continue\n" << TermColor::RESET();
-            ros::spinOnce();
-            cv::waitKey(0);
-            idx_ptr[seriesI]++; //move the pointer ahead by 1
-
-
-            cout << TermColor::RESET() << endl;
-        }
-
-
-        // various alignment methods
-        if( false && ch == '1' ) {
-            // ICP, on map0, map1
-            assert( vec_map.size() >= 2 && "You requsted ICP computation, however it needs atleast 2 surfel maps");
-
-            MatrixXd __0X;
-            {
-                int seriesI = 0;
-                __0X = all_odom_poses[ seriesI ][0].inverse() * vec_map[seriesI]->surfelWorldPosition();
-            } cout << "__0X : " << __0X.rows() << " x " << __0X.cols() << endl;
-
-            MatrixXd __0Y;
-            {
-                int seriesI = 1;
-                __0Y = all_odom_poses[ seriesI ][0].inverse() * vec_map[seriesI]->surfelWorldPosition();
-            } cout << "__0Y : " << __0Y.rows() << " x " << __0Y.cols() << endl;
-
-            std::vector<Vector3d> a_X;
-            for( int i=0 ; i<__0X.cols() ; i++ )
-            {
-                a_X.push_back( __0X.col(i).topRows(3) );
-            }
-
-            std::vector<Vector3d> b_X;
-            for( int i=0 ; i<__0Y.cols() ; i++ )
-            {
-                b_X.push_back( __0Y.col(i).topRows(3) );
-            }
-
-            Matrix3d ____R = Matrix3d::Identity();
-            Vector3d ____t = Vector3d::Zero(); double ___s=1.0;
-            theia::AlignPointCloudsUmeyama( a_X, b_X, &____R, &____t, &___s );
-        }
-        #endif
     } //while(ros::ok())
 
 
