@@ -38,7 +38,9 @@ using json = nlohmann::json;
 #include "utils/CameraGeometry.h"
 #include "utils/PointFeatureMatching.h"
 
+
 #include "PoseComputation.h"
+#include "Triangulation.h"
 
 //
 #include "utils/RosMarkerUtils.h"
@@ -1351,6 +1353,9 @@ int main( int argc, char ** argv )
                 vector<Point2f> pts_to_track;
                 MiscUtils::eigen_2_point2f( uv_a, pts_to_track );
 
+                MatrixXd normed_uv_a, normed_uv_b; //the normalized image co-ordinates for the original image correspondences
+
+
 
 
 
@@ -1358,103 +1363,188 @@ int main( int argc, char ** argv )
                 //--- Depth Estimation from Optical Flow and Triangulation. Will also use odometry poses
                 //----
                 //--Seq-A , A+1, A+2,...
+
                 {
-                cout << "Look at adjacent images of idx_a=" << idx_a << endl;
-                json data_node_a = STATE["DataNodes"][idx_a];
-                cv::Mat image_a;
-                Matrix4d w_T_al;
-                bool status_img  = xloader.retrive_image_data_from_json_datanode( data_node_a, image_a );
-                bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_a, w_T_al );
-                assert( status_img && status_pose );
+                    //---- the `base`
+                    cout << "Look at adjacent images of idx_a=" << idx_a << endl;
+                    json data_node_a = STATE["DataNodes"][idx_a];
+                    cv::Mat image_a;
+                    Matrix4d w_T_al;
+                    bool status_img  = xloader.retrive_image_data_from_json_datanode( data_node_a, image_a );
+                    bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_a, w_T_al );
+                    assert( status_img && status_pose );
 
-                // plot base image with points to track
-                cv::Mat dst_baseimg_with_feat_to_track;
-                MiscUtils::plot_point_sets(  image_a, uv_a, dst_baseimg_with_feat_to_track,
-                    cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_a)+ ") to track from n_pts="+to_string(uv_a.cols()) );
-                MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track,0.5 );
-
-
-                //next image in seq   ==>  track the points uv_a on idx_a+p
-                for( int  p=1 ; p<8 ; p++ )
-                {
-                    cout <<  "\tp=" << p << endl;
-                    json data_node_a__p = STATE["DataNodes"][idx_a+p];
-                    if( xloader.is_data_available(data_node_a__p) == false ) {
-                        cout << "\tno image or pose data so skip this p\n";
-                        continue;
-                    }
-
-                    cv::Mat image_a__p;
-                    Matrix4d w_T_al__p;
-                    bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_a__p, image_a__p );
-                    bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_a__p, w_T_al__p );
-                    assert( status_img__p && status_pose__p );
+                    // plot base image with points to track
+                    cv::Mat dst_baseimg_with_feat_to_track;
+                    MiscUtils::plot_point_sets(  image_a, uv_a, dst_baseimg_with_feat_to_track,
+                        cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_a)+ ") to track from n_pts="+to_string(uv_a.cols()) );
+                    MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track, 1.0 );
 
 
-                    //---- optical flow
-                    vector<Point2f> result_of_opticalflow = pts_to_track; //give it an initial guess
-                    vector<uchar> status;
-                    vector<float> err;
-                    cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 30, 0.01);
-                    cv::Size win_size = cv::Size(25,25);
-                    int n_pyramids = 4;
+                    //---- next image in seq   ==>  track the points uv_a on idx_a+p
+                    // we track the correspondences at say 2 frames ahead and 2 frames back to get an estimate of depth at those points.
 
-                    cout << TermColor::GREEN() << "\tCalculate Optical Flow" << TermColor::RESET() << endl;
-                    cout << "\timage_a:" << MiscUtils::cvmat_info( image_a ) << endl;
-                    cout << "\timage_a__p:" << MiscUtils::cvmat_info( image_a__p ) << endl;
-                    cout << "\tpts_to_track.size=" << pts_to_track.size() << endl;
-                    cv::calcOpticalFlowPyrLK( image_a, image_a__p, pts_to_track, result_of_opticalflow,
-                             status, err, win_size, n_pyramids, criteria );
-
-                             int nfail = 0;
-                             for( int kk=0 ; kk<status.size() ; kk++ )
-                             {
-                                 if( status[kk] == 0 )
-                                     nfail++;
-                             }
-                             cout << "\t\tnfail=" << nfail << endl;
-                    cout << "\tshowing adjacent image to idx_a="<< idx_a << "@p=" << p << " pose=" << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << endl;
-                    MatrixXd eigen_result_of_opticalflow;
-                    cv::Mat dst_tracked;
-                    MiscUtils::point2f_2_eigen( result_of_opticalflow, eigen_result_of_opticalflow);
-                    MiscUtils::plot_point_sets_masked( image_a__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true, "idx_a="+to_string(idx_a)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
-                    MiscUtils::imshow( "dst_tracked", dst_tracked, 0.5 );
-
-
-                    //----- triangulate
-                    cout << TermColor::GREEN() << "\tTriangulate" << TermColor::RESET() << endl;
-                    cout << "\tw_T_al " << PoseManipUtils::prettyprintMatrix4d(w_T_al) << "\n";
-                    cout << "\tw_T_al__p " << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << "\n";
-                    Matrix4d al_T_al__p = w_T_al.inverse() * w_T_al__p;
-                    cout << "\tbaseline = " << al_T_al__p.col(3).topRows(3).norm() << endl;
-
-                    // loop over each point and triangulate it
-                    for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ )
+                    vector<int> list__p; // the p that we used
+                    vector<MatrixXd> tracked_uv_at__p; //the uv (image co-ordinates) points at p
+                    vector<MatrixXd> tracked_normed_uv_at__p; //the uv (normalized image co-ordinates) points at p
+                    vector<Matrix4d> p_T_base_at__p; //the pose of base wrt camera-p. for every p
+                    // vector< vector<uchar> > status_at__p; // status of the tracked points at p.
+                    vector<VectorXd> status_at__p; // status of the tracked points at p.
+                    for( int  p=-8 ; p<8 ; p++ )
                     {
-                        if( status[mm] == 0 )
+                        cout <<  "\tp=" << p << endl;
+                        json data_node_a__p = STATE["DataNodes"][idx_a+p];
+                        if( xloader.is_data_available(data_node_a__p) == false ) {
+                            cout << "\tno image or pose data so skip this p\n";
                             continue;
+                        }
 
-                        // convert to normalized image co-ordinates
-                        #if 0
-                        normed_uv_a__i = to_normalized_image_cords( uv_a.col(mm) );
-                        normed_tracked_uv_a__i = to_normalized_image_cords( eigen_result_of_opticalflow.col(mm) );
-                        triangulate( normed_uv_a.col(mm), w_T_al, normed_tracked_uv_a.col(mm), w_T_al__p );
+                        if( p==0 ) {
+                            cout << "\tskip p=0\n";
+                            continue;
+                        }
+
+                        cv::Mat image_a__p;
+                        Matrix4d w_T_al__p;
+                        bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_a__p, image_a__p );
+                        bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_a__p, w_T_al__p );
+                        assert( status_img__p && status_pose__p );
+
+
+                        //---- optical flow
+                        vector<Point2f> result_of_opticalflow = pts_to_track; //give it an initial guess
+                        vector<uchar> status;
+                        vector<float> err;
+                        cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 30, 0.01);
+                        cv::Size win_size = cv::Size(25,25);
+                        int n_pyramids = 4;
+
+                        cout << TermColor::GREEN() << "\tCalculate Optical Flow" << TermColor::RESET() << endl;
+                        cout << "\timage_a:" << MiscUtils::cvmat_info( image_a ) << endl;
+                        cout << "\timage_a__p:" << MiscUtils::cvmat_info( image_a__p ) << endl;
+                        cout << "\tpts_to_track.size=" << pts_to_track.size() << endl;
+                        cv::calcOpticalFlowPyrLK( image_a, image_a__p, pts_to_track, result_of_opticalflow,
+                                 status, err, win_size, n_pyramids, criteria );
+
+                                 int nfail = (int)status.size() - MiscUtils::total_positives(status);
+                                 cout << "\t\tnfail=" << nfail << endl;
+
+                        cout << "\tshowing adjacent image to idx_a="<< idx_a << "@p=" << p << " pose=" << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << endl;
+                        MatrixXd eigen_result_of_opticalflow;
+                        MiscUtils::point2f_2_eigen( result_of_opticalflow, eigen_result_of_opticalflow, true);
+
+
+                        //---- save for later
+                        list__p.push_back(p);
+                        tracked_uv_at__p.push_back( eigen_result_of_opticalflow );
+                        p_T_base_at__p.push_back( w_T_al__p.inverse() * w_T_al );
+                        status_at__p.push_back( MiscUtils::to_eigen( status ) );
+
+                        MatrixXd eigen_result_of_opticalflow_normed_im_cord = MatrixXd::Constant( 3, eigen_result_of_opticalflow.cols(), 1.0 );
+                        for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ ) //to compute normalized image co-ordinates
+                        {
+                            Vector2d ____uv(  eigen_result_of_opticalflow(0,mm), eigen_result_of_opticalflow(1,mm) );
+                            Vector3d ____normed_uv;
+                            xloader.left_camera->liftProjective( ____uv, ____normed_uv );
+
+                            // eigen_result_of_opticalflow_normed_im_cord.col(mm).topRows(3) = ____normed_uv;
+                            eigen_result_of_opticalflow_normed_im_cord(0,mm) = ____normed_uv(0);
+                            eigen_result_of_opticalflow_normed_im_cord(1,mm) = ____normed_uv(1);
+                            eigen_result_of_opticalflow_normed_im_cord(2,mm) = ____normed_uv(2);
+                        }
+                        tracked_normed_uv_at__p.push_back( eigen_result_of_opticalflow_normed_im_cord );
+
+
+
+
+                        #if 1
+                        //----- triangulate
+                        cout << TermColor::GREEN() << "\tTriangulate" << TermColor::RESET() << endl;
+                        cout << "\tw_T_al " << PoseManipUtils::prettyprintMatrix4d(w_T_al) << "\n";
+                        cout << "\tw_T_al__p " << PoseManipUtils::prettyprintMatrix4d(w_T_al__p) << "\n";
+                        Matrix4d al_T_al__p = w_T_al.inverse() * w_T_al__p;
+                        cout << "\tbaseline = " << al_T_al__p.col(3).topRows(3).norm() << endl;
+
+                        // loop over each point and triangulate it
+                        for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ )
+                        {
+                            if( status[mm] == 0 )
+                                continue;
+
+                            // convert to normalized image co-ordinates
+                            Vector2d _uv_a_i (  uv_a(0,mm), uv_a(1,mm) );
+                            Vector3d normed_uv_a__i;
+                            xloader.left_camera->liftProjective( _uv_a_i, normed_uv_a__i );
+
+                            Vector2d _uv_b_i(  eigen_result_of_opticalflow(0,mm), eigen_result_of_opticalflow(1,mm) );
+                            Vector3d normed_uv_b__i;
+                            xloader.left_camera->liftProjective( _uv_b_i, normed_uv_b__i );
+
+                            Vector4d _triangulated_X;
+                            Triangulation::LinearLSTriangulation( normed_uv_a__i, Matrix4d::Identity(), normed_uv_b__i, al_T_al__p.inverse(), _triangulated_X );
+
+                            //^^ This is more understanding and verification
+
+                            // printing
+                            cout << "mm=" << mm << "\t";
+                            cout << "d_a(mm)=" << d_a(mm) << "\t";
+                            cout << "sf(mm)=" << sf(mm) << "\t";
+                            cout << TermColor::YELLOW() << "triangulated=" << _triangulated_X.transpose() << "\t" << TermColor::RESET();
+                            cout << endl;
+                        }
+                        #endif //triangulate
+
+                        #if 1 //viz
+                        cv::Mat dst_tracked;
+                        MiscUtils::plot_point_sets_masked( image_a__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true, "idx_a="+to_string(idx_a)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
+                        MiscUtils::imshow( "dst_tracked", dst_tracked, 1.0 );
+
+                        cout << "press 'b' to exit the loop of random pair draws, any other key to keep drawing more random pairs\n";
+                        ch = cv::waitKey(0);
+                        if( ch == 'b' ) {
+                            cout << "b pressed, goto end_of_random_draws";
+                            goto end_of_random_draws;
+                        }
                         #endif
+
+
+                    } // END for( int  p=-8 ; p<8 ; p++ )
+                    end_of_p__for_seq_a: ;
+                    cout << "loop on p ends\n";
+                    #if 1 //viz
+                    cv::destroyWindow("dst_tracked");
+                    cv::destroyWindow("dst_baseimg_with_feat_to_track");
+                    #endif
+
+
+                    #if 0
+                    // ---- Triangulation (Multi-View)
+                    //  This will use: list__p, tracked_uv_at__p, tracked_normed_uv_at__p, p_T_base_at__p, status_at__p
+                    //print info of the track
+                    for( int h=0 ; h<list__p.size() ; h++ )
+                    {
+                        cout << TermColor::YELLOW() << "rel indx p=" << list__p[h] << "\t" << TermColor::RESET();
+                        cout << "#tracked points (total) = " << tracked_uv_at__p[h].cols() << ", " << tracked_normed_uv_at__p[h].cols() << "\t";
+                        cout << "#successfully tracked   = " << status_at__p[h].sum() << " of total " << status_at__p[h].size() << "\t";
+                        cout << endl;
                     }
 
-                    cv::waitKey(0);
 
-                }
-                cout << "loop on p ends\n";
-                cv::destroyWindow("dst_tracked");
-                cv::destroyWindow("dst_baseimg_with_feat_to_track");
+                    #endif
 
-                }
+
+                } // end processing for depth of seq-a
 
 
                 //--Seq-B, B+1, B+2,...
-            }
+                {
+                    // TODO
+                    end_of_p__for_seq_b: ;
+                }
 
+
+            } // END for( int  p=1 ; p<8 ; p++ )
+        end_of_random_draws: ;
 
 
         }

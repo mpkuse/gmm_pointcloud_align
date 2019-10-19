@@ -70,6 +70,9 @@ public:
     static void gather( const vector<VectorXd>& mats, VectorXd& dst );
 
     static int total_true( const vector<bool>& V );
+    static int total_positives( const vector<uchar>& V );
+
+    static VectorXd to_eigen( const vector<uchar>& V );
     //---------------------------- Conversions ---------------------------------//
 
 

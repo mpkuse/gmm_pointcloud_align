@@ -94,7 +94,7 @@ void StaticPointFeatureMatching::point_feature_matches( const cv::Mat& imleft_un
         }
     ___StaticPointFeatureMatching__point_feature_matches(
         cout << "....Only " << n_good << " points pass the F-test\n";)
-        summary.n_keypoints_pass_f_test = n_good; 
+        summary.n_keypoints_pass_f_test = n_good;
 
         //
         bool make_homogeneous = true;
@@ -430,4 +430,32 @@ void StaticPointFeatureMatching::lowe_ratio_test( const vector<cv::KeyPoint>& ke
         }
     }
 
+}
+
+
+
+
+bool StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates(
+    const camodocal::CameraPtr camera,
+    const MatrixXd& uv, MatrixXd& normed_uv )
+{
+    assert( uv.cols() > 0 );
+    assert( uv.rows() == 3 || uv.rows() == 2 );
+    assert( camera );
+
+
+    normed_uv = MatrixXd::Constant( 3, uv.cols(), 1.0 );
+    for( int mm=0 ; mm<uv.cols() ; mm++ ) //to compute normalized image co-ordinates
+    {
+        Vector2d ____uv(  uv(0,mm), uv(1,mm) );
+        Vector3d ____normed_uv;
+        camera->liftProjective( ____uv, ____normed_uv );
+
+        // eigen_result_of_opticalflow_normed_im_cord.col(mm).topRows(3) = ____normed_uv;
+        normed_uv(0,mm) = ____normed_uv(0);
+        normed_uv(1,mm) = ____normed_uv(1);
+        normed_uv(2,mm) = ____normed_uv(2);
+    }
+
+    return true;
 }

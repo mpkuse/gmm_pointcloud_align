@@ -251,6 +251,7 @@ add_executable( local_ptcloud
         #src/SurfelMap.cpp
         ${KaixuanUtils}
         src/PoseComputation.cpp
+        src/Triangulation.cpp
         )
 
     add_executable( icl_nuim_tool
@@ -298,6 +299,13 @@ add_executable( test_lk_opticalflow
     src/test_lk_opticalflow.cpp
     ${KuseUtils}
 )
+
+add_executable( test_triangulation
+    src/test_triangulation.cpp
+#    ${KuseUtils}
+    src/Triangulation.cpp
+)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -395,6 +403,12 @@ target_link_libraries( test_lk_opticalflow
    ${OpenCV_LIBS}
  )
 
+
+
+target_link_libraries( test_triangulation
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+ )
 
 #############
 ## Install ##

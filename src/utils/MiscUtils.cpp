@@ -194,6 +194,26 @@ int MiscUtils::total_true( const vector<bool>& V )
     return s;
 }
 
+int MiscUtils::total_positives( const vector<uchar>& V )
+{
+    int s=0;
+    for( int i=0 ; i<(int)V.size() ; i++ )
+        if( V[i] > (uchar) 0 )
+            s++;
+
+    return s;
+}
+
+VectorXd MiscUtils::to_eigen( const vector<uchar>& V )
+{
+    assert( V.size() > 0 );
+    VectorXd out = VectorXd::Zero( (int) V.size() );
+    for( int i=0 ; i<(int)V.size() ; i++ )
+        out(i) = (double) V[i];
+
+    return out;
+}
+
 void MiscUtils::imshow( const string& win_name, const cv::Mat& im, float scale )
 {
     if( scale == 1.0 ) {

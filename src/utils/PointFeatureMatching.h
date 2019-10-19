@@ -20,6 +20,10 @@
 using namespace Eigen;
 #include <opencv2/core/eigen.hpp>
 
+// Camodocal
+#include "camodocal/camera_models/Camera.h"
+#include "camodocal/camera_models/CameraFactory.h"
+
 using namespace std;
 
 #include "GMSMatcher/gms_matcher.h"
@@ -126,6 +130,15 @@ public:
         // vector<Vector3d>& uv_X, vector<Vector3d>& uvd_Y
         MatrixXd& uv_X, MatrixXd& uvd_Y, vector<bool>& valids
     );
+
+
+    // Give as input the imaged co-ordinates to get these in normalized image co-ordinates.
+    // Params:
+    //      camera [input]: The camodocal (general) camera
+    //      uv : The co-ordinates (x,y) 2xN or 3xN in imaged co-ordinates
+    //      normed_uv [output]: The resulting imaged co-ordinates (uv) to normalized. normed_uv := K.inverse() * [u_i;v_i;1]
+    static bool image_coordinates_to_normalized_image_coordinates( const camodocal::CameraPtr camera,
+        const MatrixXd& uv, MatrixXd& normed_uv );
 
 
 private:
