@@ -150,3 +150,81 @@ double Triangulation::IterativeLinearLSTriangulation(
     result_X(2) = X(2);
     result_X(3) = 1.0;
 }
+
+
+
+
+// #define __Triangulation__MultiViewLinearLSTriangulation_(msg) msg;
+#define __Triangulation__MultiViewLinearLSTriangulation_(msg) ;
+bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
+    const vector<Vector3d>& tracked_u,   const vector<Matrix4d>& p_T_base,
+    Vector4d& result_X,  const vector<bool>status )
+{
+    int N = tracked_u.size();
+    assert( N>0 );
+    assert( p_T_base.size() == N );
+
+    bool use_all = false;
+    if( status.size() == 0 )
+        use_all = true;
+    else {
+        use_all = false;
+        assert( status.size() == N );
+    }
+
+    int N_true = total_true( status );
+    // cout << "[Triangulation::MultiViewLinearLSTriangulation]this u is visible in " << N_true << " adjacent images out of total " << N << " tracked images\n";
+
+    // Matrix<double, Dynamic, 3>  A = Matrix<double, Dynamic, 3>::Zero( 2*N_true + 2, 3  ); // N_true x 3
+    MatrixXd A = MatrixXd::Zero( 2*N_true + 2, 3);
+    VectorXd b = VectorXd::Zero( 2*N_true + 2 );
+
+
+    // 2 equations per tracking
+    // note: R = [ r_1; r_2; r_3 ], r1 is 1st row of R;    t = [tx; ty; tz]
+    // [ u r_3 - r_1 ] [ x ]        [tx - u*tz]
+    // [ v r_3 - r_2 ] [ y ]    =   [ty - v*tz]
+    //                 [ z ]        []
+    int c=0;
+    for( int i=0 ; i<N ; i++ )
+    {
+        if( status[i] == false )
+            continue;
+
+        #if 1
+        Matrix3d p_R_base = p_T_base[i].topLeftCorner(3,3);
+        Vector3d p_t_base = p_T_base[i].col(3).topRows(3);
+        A.row( 2*c + 0 ) = p_R_base.row(2) * tracked_u[i](0) - p_R_base.row(0);
+        b(2*c + 0) = p_t_base(0) - tracked_u[i](0) * p_t_base(2);
+
+        A.row( 2*c + 1 ) = p_R_base.row(2) * tracked_u[i](1) - p_R_base.row(1);
+        b(2*c + 1) = p_t_base(1) - tracked_u[i](1) * p_t_base(2);
+        #endif
+        c++;
+    }
+
+    // equation for base
+    A.row(2*N_true) << -1.0, 0.0, base_u(0);
+    b(2*N_true) = 0.0;
+    A.row(2*N_true+1) << 0.0, -1.0, base_u(1);
+    b(2*N_true+1) = 0.0;
+
+
+    // Solve minimize_x ||Ax - b||
+    __Triangulation__MultiViewLinearLSTriangulation_(
+    cout << "N_true=" << N_true << "\t";
+    cout << "A: " << A.rows() << "x" << A.cols() << "\t" << "b: " << b.rows() << "x" << b.cols() << endl;)
+    VectorXd X = A.bdcSvd(ComputeThinU | ComputeThinV).solve(b);
+    // VectorXd X = A.bdcSvd().solve(b);
+    // VectorXd X = A.FullPivHouseholderQR().solve(b);
+    result_X(0) = X(0);
+    result_X(1) = X(1);
+    result_X(2) = X(2);
+    result_X(3) = 1.0;
+
+
+    __Triangulation__MultiViewLinearLSTriangulation_(
+    cout << "||AX-b|| = " << (A * X - b).squaredNorm() << endl; )
+
+
+}

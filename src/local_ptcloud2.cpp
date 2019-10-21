@@ -676,8 +676,9 @@ void print_usage( cv::Mat& status )
     msg += "z,x,c,v....: step by 10, the the idx_ptr;";
     msg += "q,w,e,r.....: Process the series;";
     msg += "n: fork new idx_ptr, m: new idx_ptr from 0;";
-    msg += "1: Draw random image pair, map point feature to 3dpoints; 3d3dalign";
+    msg += "1: Draw random image pair, map point feature to 3dpoints;";
     msg += "2: align3d3d with depth refinement;";
+    msg += "3: monocular;";
     msg += "9:viz 3d model normals;";
     msg += "ESC: quit;";
     MiscUtils::append_status_image( status, msg, .45, cv::Scalar(0,0,0), cv::Scalar(255,255,255) );
@@ -1313,6 +1314,19 @@ int main( int argc, char ** argv )
             cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
             cout << "series#1: " << *(all_i[1].begin()) << " --> " << *(all_i[1].rbegin()) << endl;
 
+            // odom pose of 1st image in series
+            Matrix4d w_T_a0, w_T_b0;
+            bool status_posea0 = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][*(all_i[0].begin())], w_T_a0 );
+            bool status_poseb0 = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][*(all_i[1].begin())], w_T_b0 );
+            assert( status_posea0 && status_poseb0 );
+
+
+
+            vector<Matrix4d> all_a0_T_a, all_b0_T_b;
+            vector<MatrixXd> all_normed_uv_a, all_normed_uv_b;
+            vector<VectorXd> all_d_a, all_d_b, all_sf;
+
+            vector<MatrixXd> all_a0X, all_b0X;
 
             // random pairs, image correspondences only
             std::map< std::pair<int,int>, bool > repeatl;
@@ -1350,11 +1364,16 @@ int main( int argc, char ** argv )
                 VectorXd d_a, d_b, sf;
                 image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
 
-                vector<Point2f> pts_to_track;
-                MiscUtils::eigen_2_point2f( uv_a, pts_to_track );
+                vector<Point2f> pts_to_track_a;
+                MiscUtils::eigen_2_point2f( uv_a, pts_to_track_a );
+
+                vector<Point2f> pts_to_track_b;
+                MiscUtils::eigen_2_point2f( uv_b, pts_to_track_b );
+
 
                 MatrixXd normed_uv_a, normed_uv_b; //the normalized image co-ordinates for the original image correspondences
-
+                StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( xloader.left_camera, uv_a, normed_uv_a );
+                StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( xloader.left_camera, uv_b, normed_uv_b );
 
 
 
@@ -1363,10 +1382,10 @@ int main( int argc, char ** argv )
                 //--- Depth Estimation from Optical Flow and Triangulation. Will also use odometry poses
                 //----
                 //--Seq-A , A+1, A+2,...
-
+                #if 0
                 {
                     //---- the `base`
-                    cout << "Look at adjacent images of idx_a=" << idx_a << endl;
+                    cout << "\n\n======= Look at adjacent images of idx_a=" << idx_a << endl;
                     json data_node_a = STATE["DataNodes"][idx_a];
                     cv::Mat image_a;
                     Matrix4d w_T_al;
@@ -1390,7 +1409,7 @@ int main( int argc, char ** argv )
                     vector<Matrix4d> p_T_base_at__p; //the pose of base wrt camera-p. for every p
                     // vector< vector<uchar> > status_at__p; // status of the tracked points at p.
                     vector<VectorXd> status_at__p; // status of the tracked points at p.
-                    for( int  p=-8 ; p<8 ; p++ )
+                    for( int  p=-6 ; p<6 ; p++ )
                     {
                         cout <<  "\tp=" << p << endl;
                         json data_node_a__p = STATE["DataNodes"][idx_a+p];
@@ -1412,7 +1431,7 @@ int main( int argc, char ** argv )
 
 
                         //---- optical flow
-                        vector<Point2f> result_of_opticalflow = pts_to_track; //give it an initial guess
+                        vector<Point2f> result_of_opticalflow = pts_to_track_a; //give it an initial guess
                         vector<uchar> status;
                         vector<float> err;
                         cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 30, 0.01);
@@ -1422,10 +1441,11 @@ int main( int argc, char ** argv )
                         cout << TermColor::GREEN() << "\tCalculate Optical Flow" << TermColor::RESET() << endl;
                         cout << "\timage_a:" << MiscUtils::cvmat_info( image_a ) << endl;
                         cout << "\timage_a__p:" << MiscUtils::cvmat_info( image_a__p ) << endl;
-                        cout << "\tpts_to_track.size=" << pts_to_track.size() << endl;
-                        cv::calcOpticalFlowPyrLK( image_a, image_a__p, pts_to_track, result_of_opticalflow,
+                        cout << "\tpts_to_track_a.size=" << pts_to_track_a.size() << endl;
+                        ElapsedTime t_opticalflow( "optical_flow");
+                        cv::calcOpticalFlowPyrLK( image_a, image_a__p, pts_to_track_a, result_of_opticalflow,
                                  status, err, win_size, n_pyramids, criteria );
-
+                        cout << TermColor::BLUE() << t_opticalflow.toc() << TermColor::RESET() << endl;
                                  int nfail = (int)status.size() - MiscUtils::total_positives(status);
                                  cout << "\t\tnfail=" << nfail << endl;
 
@@ -1437,27 +1457,19 @@ int main( int argc, char ** argv )
                         //---- save for later
                         list__p.push_back(p);
                         tracked_uv_at__p.push_back( eigen_result_of_opticalflow );
-                        p_T_base_at__p.push_back( w_T_al__p.inverse() * w_T_al );
+                        Matrix4d ___tmp =  w_T_al__p.inverse() * w_T_al ;
+                        // Matrix4d ___tmp =  w_T_al__p * w_T_al.inverse() ;
+                        p_T_base_at__p.push_back(___tmp);
                         status_at__p.push_back( MiscUtils::to_eigen( status ) );
 
-                        MatrixXd eigen_result_of_opticalflow_normed_im_cord = MatrixXd::Constant( 3, eigen_result_of_opticalflow.cols(), 1.0 );
-                        for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ ) //to compute normalized image co-ordinates
-                        {
-                            Vector2d ____uv(  eigen_result_of_opticalflow(0,mm), eigen_result_of_opticalflow(1,mm) );
-                            Vector3d ____normed_uv;
-                            xloader.left_camera->liftProjective( ____uv, ____normed_uv );
-
-                            // eigen_result_of_opticalflow_normed_im_cord.col(mm).topRows(3) = ____normed_uv;
-                            eigen_result_of_opticalflow_normed_im_cord(0,mm) = ____normed_uv(0);
-                            eigen_result_of_opticalflow_normed_im_cord(1,mm) = ____normed_uv(1);
-                            eigen_result_of_opticalflow_normed_im_cord(2,mm) = ____normed_uv(2);
-                        }
+                        MatrixXd eigen_result_of_opticalflow_normed_im_cord;
+                        StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates(
+                            xloader.left_camera,
+                            eigen_result_of_opticalflow, eigen_result_of_opticalflow_normed_im_cord  );
                         tracked_normed_uv_at__p.push_back( eigen_result_of_opticalflow_normed_im_cord );
 
 
-
-
-                        #if 1
+                        #if 0
                         //----- triangulate
                         cout << TermColor::GREEN() << "\tTriangulate" << TermColor::RESET() << endl;
                         cout << "\tw_T_al " << PoseManipUtils::prettyprintMatrix4d(w_T_al) << "\n";
@@ -1502,7 +1514,7 @@ int main( int argc, char ** argv )
                         cout << "press 'b' to exit the loop of random pair draws, any other key to keep drawing more random pairs\n";
                         ch = cv::waitKey(0);
                         if( ch == 'b' ) {
-                            cout << "b pressed, goto end_of_random_draws";
+                            cout << "b pressed, goto end_of_random_draws\n";
                             goto end_of_random_draws;
                         }
                         #endif
@@ -1510,17 +1522,15 @@ int main( int argc, char ** argv )
 
                     } // END for( int  p=-8 ; p<8 ; p++ )
                     end_of_p__for_seq_a: ;
-                    cout << "loop on p ends\n";
-                    #if 1 //viz
-                    cv::destroyWindow("dst_tracked");
-                    cv::destroyWindow("dst_baseimg_with_feat_to_track");
-                    #endif
+                    cout << "\tloop on p ends\n";
 
 
-                    #if 0
+                    #if 1
                     // ---- Triangulation (Multi-View)
                     //  This will use: list__p, tracked_uv_at__p, tracked_normed_uv_at__p, p_T_base_at__p, status_at__p
                     //print info of the track
+                    cout << TermColor::GREEN() << "\tMultiView Triangulate" << TermColor::RESET() << endl;
+
                     for( int h=0 ; h<list__p.size() ; h++ )
                     {
                         cout << TermColor::YELLOW() << "rel indx p=" << list__p[h] << "\t" << TermColor::RESET();
@@ -1530,23 +1540,337 @@ int main( int argc, char ** argv )
                     }
 
 
+                    // Triangulate each point
+                    ElapsedTime t_multiview_triangulation( "Multiview triangulation");
+                    for( int f=0 ; f<normed_uv_a.cols() ; f++ ) // loop over each uv_a
+                    {
+                        Vector3d _u = normed_uv_a.col(f);
+
+
+                        vector<Vector3d> _u_tracked; _u_tracked.clear();
+                        vector<bool> _u_visible; _u_visible.clear();
+                        for( int h=0 ; h<tracked_normed_uv_at__p.size() ; h++ ) // loop on each track for the uv_a[i]
+                        {
+                            Vector3d _tmp;
+                            _tmp = tracked_normed_uv_at__p[h].col(f);
+                            _u_tracked.push_back( _tmp );
+
+                            double v = status_at__p[h](f);
+                            if( v > 0 )
+                                _u_visible.push_back(true);
+                            else
+                                _u_visible.push_back(false);
+
+
+                        }
+
+
+                        Vector4d result_X;
+                        bool triangulation_status = Triangulation::MultiViewLinearLSTriangulation(
+                            _u,
+                            _u_tracked, p_T_base_at__p,
+                            result_X, _u_visible );
+
+                        cout << "feat#" << f << ": triangulated=" << result_X.transpose() << "\t";
+                        cout << TermColor::YELLOW() << "stereo_depth=" << d_a(f) << "\tsf=" << sf(f) << TermColor::RESET() << endl;
+                    }
+                    cout << TermColor::BLUE() << t_multiview_triangulation.toc() << TermColor::RESET() << endl;
+
+
+
+
+                    #endif //Multiview Triangulation
+
+                    cout << "Multiview Triangulation Done, press any key to continue\n";
+                    cv::waitKey(0);
+
+                    #if 1 //viz
+                    cv::destroyWindow("dst_tracked");
+                    cv::destroyWindow("dst_baseimg_with_feat_to_track");
                     #endif
 
 
-                } // end processing for depth of seq-a
 
+                } // end processing for depth of seq-a
+                #endif
 
                 //--Seq-B, B+1, B+2,...
+                #if 0
                 {
-                    // TODO
+                    //---- the `base`
+                    cout << "\n\n======= Look at adjacent images of idx_b=" << idx_b << endl;
+                    json data_node_b = STATE["DataNodes"][idx_b];
+                    cv::Mat image_b;
+                    Matrix4d w_T_bm;
+                    bool status_img  = xloader.retrive_image_data_from_json_datanode( data_node_b, image_b );
+                    bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_b, w_T_bm );
+                    assert( status_img && status_pose );
+
+                    // plot base image with points to track
+                    cv::Mat dst_baseimg_with_feat_to_track;
+                    MiscUtils::plot_point_sets(  image_b, uv_b, dst_baseimg_with_feat_to_track,
+                        cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_b)+ ") to track from n_pts="+to_string(uv_b.cols()) );
+                    MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track, 1.0 );
+
+
+                    //---- next image in seq   ==>  track the points uv_a on idx_a+p
+                    // we track the correspondences at say 2 frames ahead and 2 frames back to get an estimate of depth at those points.
+
+                    vector<int> list__p; // the p that we used
+                    vector<MatrixXd> tracked_uv_at__p; //the uv (image co-ordinates) points at p
+                    vector<MatrixXd> tracked_normed_uv_at__p; //the uv (normalized image co-ordinates) points at p
+                    vector<Matrix4d> p_T_base_at__p; //the pose of base wrt camera-p. for every p
+                    // vector< vector<uchar> > status_at__p; // status of the tracked points at p.
+                    vector<VectorXd> status_at__p; // status of the tracked points at p.
+                    for( int  p=-6 ; p<6 ; p++ )
+                    {
+                        cout <<  "\tp=" << p << endl;
+                        json data_node_b__p = STATE["DataNodes"][idx_b+p];
+                        if( xloader.is_data_available(data_node_b__p) == false ) {
+                            cout << "\tno image or pose data so skip this p\n";
+                            continue;
+                        }
+
+                        if( p==0 ) {
+                            cout << "\tskip p=0\n";
+                            continue;
+                        }
+
+                        cv::Mat image_b__p;
+                        Matrix4d w_T_bm__p;
+                        bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_b__p, image_b__p );
+                        bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_b__p, w_T_bm__p );
+                        assert( status_img__p && status_pose__p );
+
+
+                        //---- optical flow
+                        vector<Point2f> result_of_opticalflow = pts_to_track_b; //give it an initial guess
+                        vector<uchar> status;
+                        vector<float> err;
+                        cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 30, 0.01);
+                        cv::Size win_size = cv::Size(25,25);
+                        int n_pyramids = 4;
+
+                        cout << TermColor::GREEN() << "\tCalculate Optical Flow" << TermColor::RESET() << endl;
+                        cout << "\timage_n:" << MiscUtils::cvmat_info( image_b ) << endl;
+                        cout << "\timage_n__p:" << MiscUtils::cvmat_info( image_b__p ) << endl;
+                        cout << "\tpts_to_track_b.size=" << pts_to_track_b.size() << endl;
+                        ElapsedTime t_opticalflow("Optical Flow");
+                        cv::calcOpticalFlowPyrLK( image_b, image_b__p, pts_to_track_b, result_of_opticalflow,
+                                 status, err, win_size, n_pyramids, criteria );
+                        cout << TermColor::BLUE() << t_opticalflow.toc() << TermColor::RESET() << endl;
+                                 int nfail = (int)status.size() - MiscUtils::total_positives(status);
+                                 cout << "\t\tnfail=" << nfail << endl;
+
+                        cout << "\tshowing adjacent image to idx_b="<< idx_b << "@p=" << p << " pose=" << PoseManipUtils::prettyprintMatrix4d(w_T_bm__p) << endl;
+                        MatrixXd eigen_result_of_opticalflow;
+                        MiscUtils::point2f_2_eigen( result_of_opticalflow, eigen_result_of_opticalflow, true);
+
+
+                        //---- save for later
+                        list__p.push_back(p);
+                        tracked_uv_at__p.push_back( eigen_result_of_opticalflow );
+                        Matrix4d ___tmp =  w_T_bm__p.inverse() * w_T_bm ;
+                        p_T_base_at__p.push_back(___tmp);
+                        status_at__p.push_back( MiscUtils::to_eigen( status ) );
+
+                        MatrixXd eigen_result_of_opticalflow_normed_im_cord;
+                        StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates(
+                            xloader.left_camera,
+                            eigen_result_of_opticalflow, eigen_result_of_opticalflow_normed_im_cord  );
+                        tracked_normed_uv_at__p.push_back( eigen_result_of_opticalflow_normed_im_cord );
+
+
+                        #if 0
+                        //----- triangulate
+                        cout << TermColor::GREEN() << "\tTriangulate" << TermColor::RESET() << endl;
+                        cout << "\tw_T_bm " << PoseManipUtils::prettyprintMatrix4d(w_T_bm) << "\n";
+                        cout << "\tw_T_bm__p " << PoseManipUtils::prettyprintMatrix4d(w_T_bm__p) << "\n";
+                        Matrix4d bm_T_bm__p = w_T_bm.inverse() * w_T_bm__p;
+                        cout << "\tbaseline = " << bm_T_bm__p.col(3).topRows(3).norm() << endl;
+
+                        // loop over each point and triangulate it
+                        for( int mm=0 ; mm<eigen_result_of_opticalflow.cols() ; mm++ )
+                        {
+                            if( status[mm] == 0 )
+                                continue;
+
+                            // convert to normalized image co-ordinates
+                            Vector2d _uv_a_i (  uv_b(0,mm), uv_b(1,mm) );
+                            Vector3d normed_uv_a__i;
+                            xloader.left_camera->liftProjective( _uv_a_i, normed_uv_a__i );
+
+                            Vector2d _uv_b_i(  eigen_result_of_opticalflow(0,mm), eigen_result_of_opticalflow(1,mm) );
+                            Vector3d normed_uv_b__i;
+                            xloader.left_camera->liftProjective( _uv_b_i, normed_uv_b__i );
+
+                            Vector4d _triangulated_X;
+                            Triangulation::LinearLSTriangulation( normed_uv_a__i, Matrix4d::Identity(), normed_uv_b__i, bm_T_bm__p.inverse(), _triangulated_X );
+
+                            //^^ This is more understanding and verification
+
+                            // printing
+                            cout << "mm=" << mm << "\t";
+                            cout << "d_b(mm)=" << d_b(mm) << "\t";
+                            cout << "sf(mm)=" << sf(mm) << "\t";
+                            cout << TermColor::YELLOW() << "triangulated=" << _triangulated_X.transpose() << "\t" << TermColor::RESET();
+                            cout << endl;
+                        }
+                        #endif //triangulate
+
+                        #if 1 //viz
+                        cv::Mat dst_tracked;
+                        MiscUtils::plot_point_sets_masked( image_b__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true,
+                            "idx_b="+to_string(idx_b)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
+                        MiscUtils::imshow( "dst_tracked", dst_tracked, 1.0 );
+
+                        cout << "press 'b' to exit the loop of random pair draws, any other key to keep drawing more random pairs\n";
+                        ch = cv::waitKey(0);
+                        if( ch == 'b' ) {
+                            cout << "b pressed, goto end_of_random_draws\n";
+                            goto end_of_random_draws;
+                        }
+                        #endif
+
+
+                    } // END for( int  p=-8 ; p<8 ; p++ )
                     end_of_p__for_seq_b: ;
+                    cout << "\tloop on p ends\n";
+
+
+                    #if 1
+                    // ---- Triangulation (Multi-View)
+                    //  This will use: list__p, tracked_uv_at__p, tracked_normed_uv_at__p, p_T_base_at__p, status_at__p
+                    //print info of the track
+                    cout << TermColor::GREEN() << "\tMultiView Triangulate (seq-b)" << TermColor::RESET() << endl;
+
+                    for( int h=0 ; h<list__p.size() ; h++ )
+                    {
+                        cout << TermColor::YELLOW() << "rel indx p=" << list__p[h] << "\t" << TermColor::RESET();
+                        cout << "#tracked points (total) = " << tracked_uv_at__p[h].cols() << ", " << tracked_normed_uv_at__p[h].cols() << "\t";
+                        cout << "#successfully tracked   = " << status_at__p[h].sum() << " of total " << status_at__p[h].size() << "\t";
+                        cout << endl;
+                    }
+
+
+                    // Triangulate each point
+                    ElapsedTime t_multiview_triangulation("Multiview triangulation");
+                    for( int f=0 ; f<normed_uv_b.cols() ; f++ ) // loop over each uv_a
+                    {
+                        Vector3d _u = normed_uv_b.col(f);
+
+
+                        vector<Vector3d> _u_tracked; _u_tracked.clear();
+                        vector<bool> _u_visible; _u_visible.clear();
+                        for( int h=0 ; h<tracked_normed_uv_at__p.size() ; h++ ) // loop on each track for the uv_a[i]
+                        {
+                            Vector3d _tmp;
+                            _tmp = tracked_normed_uv_at__p[h].col(f);
+                            _u_tracked.push_back( _tmp );
+
+                            double v = status_at__p[h](f);
+                            if( v > 0 )
+                                _u_visible.push_back(true);
+                            else
+                                _u_visible.push_back(false);
+
+
+                        }
+
+
+                        Vector4d result_X;
+                        bool triangulation_status = Triangulation::MultiViewLinearLSTriangulation(
+                            _u,
+                            _u_tracked, p_T_base_at__p,
+                            result_X, _u_visible );
+
+                        cout << "feat#" << f << ": triangulated=" << result_X.transpose() << "\t";
+                        cout << TermColor::YELLOW() << "stereo_depth=" << d_a(f) << "\tsf=" << sf(f) << TermColor::RESET() << endl;
+                    }
+                    cout << TermColor::BLUE() << t_multiview_triangulation.toc() << TermColor::RESET() << endl;
+
+                    #endif //Multiview Triangulation
+
+                    cout << "Multiview Triangulation Done, press any key to continue\n";
+                    cv::waitKey(0);
+
+                    #if 1 //viz
+                    cv::destroyWindow("dst_tracked");
+                    cv::destroyWindow("dst_baseimg_with_feat_to_track");
+                    #endif
+
+
+
+                } // end processing for depth of seq-a
+                #endif
+
+
+                // put data for this pair in gobal container
+                cout << "\n===== put data for this pair (idx_a=" << idx_a << ", idx_b=" << idx_b << ") in gobal container\n";
+
+                // 1. a0_T_a, b0_T_b
+                // 2. normed_uv_a, normed_uv_b
+                // 3. d_a, d_b, s_f --> Either from stereo or from monocular
+
+                //--1.
+                Matrix4d w_T_a, w_T_b;
+                bool status_posea = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][idx_a], w_T_a );
+                bool status_poseb = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][idx_b], w_T_b );
+                assert( status_posea && status_poseb );
+
+                Matrix4d a0_T_a = w_T_a0.inverse() * w_T_a;
+                Matrix4d b0_T_b = w_T_b0.inverse() * w_T_b;
+
+                all_a0_T_a.push_back( a0_T_a );
+                all_b0_T_b.push_back( b0_T_b );
+
+                //--2.
+                all_normed_uv_a.push_back( normed_uv_a );
+                all_normed_uv_b.push_back( normed_uv_b );
+
+                //--3.
+                all_d_a.push_back( d_a );
+                all_d_b.push_back( d_b );
+                all_sf.push_back( sf );
+
+                //--4.
+                MatrixXd aX = MatrixXd::Constant( 4, normed_uv_a.cols() , 1.0 );
+                for( int q=0 ; q<normed_uv_a.cols() ; q++ ) //depth multiplication
+                {
+                    aX(0,q) = normed_uv_a(0,q) * d_a(q);
+                    aX(1,q) = normed_uv_a(1,q) * d_a(q);
+                    aX(2,q) = normed_uv_a(2,q) * d_a(q);
+                    aX(3,q) = 1.0;
+                }
+
+                MatrixXd bX = MatrixXd::Constant( 4, normed_uv_b.cols() , 1.0 );
+                for( int q=0 ; q<normed_uv_b.cols() ; q++ ) //depth multiplication
+                {
+                    bX(0,q) = normed_uv_b(0,q) * d_b(q);
+                    bX(1,q) = normed_uv_b(1,q) * d_b(q);
+                    bX(2,q) = normed_uv_b(2,q) * d_b(q);
+                    bX(3,q) = 1.0;
                 }
 
 
-            } // END for( int  p=1 ; p<8 ; p++ )
+                MatrixXd a0X = a0_T_a * aX;
+                MatrixXd b0X = b0_T_b * bX;
+                all_a0X.push_back( a0X );
+                all_b0X.push_back( b0X );
+
+
+            } // END for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
         end_of_random_draws: ;
 
+            cout << TermColor::GREEN() << "\n=====Pose Computation\n" << TermColor::RESET();
 
+
+            // TODO
+            // gather
+
+
+
+            // Pose Computation here
         }
 
         if( ch == '9' ) // visualization for normals of a point cloud

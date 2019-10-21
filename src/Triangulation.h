@@ -55,9 +55,27 @@ public:
     // pose of base is assumed to be Identity. The returned 3d point will be in cord-ref of this base.
     // Params:
     //      base_u [input]: the tracked image point expressed in normalized image co-ordinates
+    //      tracked_u[input]: the track of this vector at the 'p's. Length of this vector must be equal to `p_T_base`
     //      p_T_base [input]: pose of the base as observed from the camera where this point was tracked
     //      result_X [output]: the resulting 3d point in cord-ref of base
     //      status [input, optional]: in which 'p's to ignore. If this is not given, we will use all.
-    static void MultiViewLinearLSTriangulation( const Vector3d& base_u,
-        const vector<Matrix4d>& p_T_base, Vector4d& result_X,  const vector<bool>status=vector<bool>() );
+    // Returns:
+    //      If the result_X contains usable 3d point then will return true.
+    //          If the tracked feature is visible in too few images then will also return false.
+    static bool MultiViewLinearLSTriangulation( const Vector3d& base_u,
+        const vector<Vector3d>& tracked_u,   const vector<Matrix4d>& p_T_base,
+        Vector4d& result_X,  const vector<bool>status=vector<bool>() );
+
+
+private:
+
+    static int total_true( const vector<bool>& V )
+    {
+        int s=0;
+        for( int i=0 ; i<(int)V.size() ; i++ )
+            if( V[i] == true )
+                s++;
+
+        return s;
+    }
 };
