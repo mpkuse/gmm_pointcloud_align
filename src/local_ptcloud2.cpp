@@ -1327,10 +1327,11 @@ int main( int argc, char ** argv )
             vector<VectorXd> all_d_a, all_d_b, all_sf;
 
             vector<MatrixXd> all_a0X, all_b0X;
+            vector<vector<bool>> all_valids;
 
             // random pairs, image correspondences only
             std::map< std::pair<int,int>, bool > repeatl;
-            for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
+            for( int rand_itr=0 ; rand_itr<15 ; rand_itr++ )
             {
                 cout << "\n-----------------------\n";
                 cout << "--- rand_itr=" << rand_itr ;
@@ -1364,6 +1365,12 @@ int main( int argc, char ** argv )
                 VectorXd d_a, d_b, sf;
                 image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
 
+                int n_matches = uv_a.cols();
+                if( n_matches < 5 ) {
+                    cout << "n_matches=" << n_matches << " these are too few..ignore\n";
+                    continue;
+                }
+
                 vector<Point2f> pts_to_track_a;
                 MiscUtils::eigen_2_point2f( uv_a, pts_to_track_a );
 
@@ -1375,14 +1382,27 @@ int main( int argc, char ** argv )
                 StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( xloader.left_camera, uv_a, normed_uv_a );
                 StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( xloader.left_camera, uv_b, normed_uv_b );
 
+                #if 1
+                cout << "press 'b' to exit the loop of random pair draws, any other key to keep drawing more random pairs\n";
+                ch = cv::waitKey(0);
+                if( ch == 'b' ) {
+                    cout << "b pressed, goto end_of_random_draws\n";
+                    goto end_of_random_draws;
+                }
+                #endif
 
 
+                // make this to 1 to visulize optical flow
+                #define _VIZ_ 1
 
                 //----
                 //--- Depth Estimation from Optical Flow and Triangulation. Will also use odometry poses
                 //----
                 //--Seq-A , A+1, A+2,...
-                #if 0
+                #define __SEQ_A_MONOCULAR__ 0
+
+                #if 1
+                VectorXd monocular_d_a = VectorXd::Zero( uv_a.cols() );
                 {
                     //---- the `base`
                     cout << "\n\n======= Look at adjacent images of idx_a=" << idx_a << endl;
@@ -1393,11 +1413,13 @@ int main( int argc, char ** argv )
                     bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_a, w_T_al );
                     assert( status_img && status_pose );
 
+                    #if _VIZ_ //viz
                     // plot base image with points to track
                     cv::Mat dst_baseimg_with_feat_to_track;
                     MiscUtils::plot_point_sets(  image_a, uv_a, dst_baseimg_with_feat_to_track,
                         cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_a)+ ") to track from n_pts="+to_string(uv_a.cols()) );
                     MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track, 1.0 );
+                    #endif
 
 
                     //---- next image in seq   ==>  track the points uv_a on idx_a+p
@@ -1428,6 +1450,10 @@ int main( int argc, char ** argv )
                         bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_a__p, image_a__p );
                         bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_a__p, w_T_al__p );
                         assert( status_img__p && status_pose__p );
+
+
+                        Matrix4d al_T_al__p = w_T_al.inverse() * w_T_al__p;
+                        cout << "\tbaseline = " << al_T_al__p.col(3).topRows(3).norm() << endl;
 
 
                         //---- optical flow
@@ -1506,7 +1532,7 @@ int main( int argc, char ** argv )
                         }
                         #endif //triangulate
 
-                        #if 1 //viz
+                        #if _VIZ_ //viz
                         cv::Mat dst_tracked;
                         MiscUtils::plot_point_sets_masked( image_a__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true, "idx_a="+to_string(idx_a)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
                         MiscUtils::imshow( "dst_tracked", dst_tracked, 1.0 );
@@ -1541,6 +1567,7 @@ int main( int argc, char ** argv )
 
 
                     // Triangulate each point
+                    #define __SEQ_A_multiview_triangulation 0
                     ElapsedTime t_multiview_triangulation( "Multiview triangulation");
                     for( int f=0 ; f<normed_uv_a.cols() ; f++ ) // loop over each uv_a
                     {
@@ -1567,12 +1594,17 @@ int main( int argc, char ** argv )
 
                         Vector4d result_X;
                         bool triangulation_status = Triangulation::MultiViewLinearLSTriangulation(
+                        // bool triangulation_status = Triangulation::MultiViewIterativeLSTriangulation(
                             _u,
                             _u_tracked, p_T_base_at__p,
                             result_X, _u_visible );
+                        monocular_d_a( f ) = result_X(2);
 
                         cout << "feat#" << f << ": triangulated=" << result_X.transpose() << "\t";
-                        cout << TermColor::YELLOW() << "stereo_depth=" << d_a(f) << "\tsf=" << sf(f) << TermColor::RESET() << endl;
+                        cout << TermColor::YELLOW() << "stereo_depth=" << d_a(f) << "\tsf=" << sf(f) << TermColor::RESET() << "\t";
+                        cout << "diff=" << abs(result_X(2) - d_a(f)) << "\t";
+                        cout << "triangulation_status=" << triangulation_status;
+                        cout << endl;
                     }
                     cout << TermColor::BLUE() << t_multiview_triangulation.toc() << TermColor::RESET() << endl;
 
@@ -1581,10 +1613,10 @@ int main( int argc, char ** argv )
 
                     #endif //Multiview Triangulation
 
+
+                    #if _VIZ_ //viz
                     cout << "Multiview Triangulation Done, press any key to continue\n";
                     cv::waitKey(0);
-
-                    #if 1 //viz
                     cv::destroyWindow("dst_tracked");
                     cv::destroyWindow("dst_baseimg_with_feat_to_track");
                     #endif
@@ -1595,7 +1627,9 @@ int main( int argc, char ** argv )
                 #endif
 
                 //--Seq-B, B+1, B+2,...
-                #if 0
+                #define __SEQ_B_MONOCULAR__ 0
+                #if 1
+                VectorXd monocular_d_b = VectorXd::Zero( uv_b.cols() );
                 {
                     //---- the `base`
                     cout << "\n\n======= Look at adjacent images of idx_b=" << idx_b << endl;
@@ -1606,11 +1640,13 @@ int main( int argc, char ** argv )
                     bool status_pose = xloader.retrive_pose_from_json_datanode( data_node_b, w_T_bm );
                     assert( status_img && status_pose );
 
+                    #if _VIZ_ //viz
                     // plot base image with points to track
                     cv::Mat dst_baseimg_with_feat_to_track;
                     MiscUtils::plot_point_sets(  image_b, uv_b, dst_baseimg_with_feat_to_track,
                         cv::Scalar(255,0,0), true, "base image (idx=" + to_string(idx_b)+ ") to track from n_pts="+to_string(uv_b.cols()) );
                     MiscUtils::imshow( "dst_baseimg_with_feat_to_track", dst_baseimg_with_feat_to_track, 1.0 );
+                    #endif
 
 
                     //---- next image in seq   ==>  track the points uv_a on idx_a+p
@@ -1622,7 +1658,7 @@ int main( int argc, char ** argv )
                     vector<Matrix4d> p_T_base_at__p; //the pose of base wrt camera-p. for every p
                     // vector< vector<uchar> > status_at__p; // status of the tracked points at p.
                     vector<VectorXd> status_at__p; // status of the tracked points at p.
-                    for( int  p=-6 ; p<6 ; p++ )
+                    for( int  p=-6 ; p<8 ; p++ )
                     {
                         cout <<  "\tp=" << p << endl;
                         json data_node_b__p = STATE["DataNodes"][idx_b+p];
@@ -1641,6 +1677,10 @@ int main( int argc, char ** argv )
                         bool status_img__p  = xloader.retrive_image_data_from_json_datanode( data_node_b__p, image_b__p );
                         bool status_pose__p = xloader.retrive_pose_from_json_datanode( data_node_b__p, w_T_bm__p );
                         assert( status_img__p && status_pose__p );
+
+
+                        Matrix4d bm_T_bm__p = w_T_bm.inverse() * w_T_bm__p;
+                        cout << "\tbaseline = " << bm_T_bm__p.col(3).topRows(3).norm() << endl;
 
 
                         //---- optical flow
@@ -1718,7 +1758,7 @@ int main( int argc, char ** argv )
                         }
                         #endif //triangulate
 
-                        #if 1 //viz
+                        #if _VIZ_ //viz
                         cv::Mat dst_tracked;
                         MiscUtils::plot_point_sets_masked( image_b__p, eigen_result_of_opticalflow, status, dst_tracked, cv::Scalar(0,0,255), true,
                             "idx_b="+to_string(idx_b)+" p="+to_string(p)+";"+"total_tracked="+to_string(status.size())+";nfail="+to_string(nfail) );
@@ -1754,6 +1794,7 @@ int main( int argc, char ** argv )
 
 
                     // Triangulate each point
+                    #define __SEQ_B_multiview_triangulation 0
                     ElapsedTime t_multiview_triangulation("Multiview triangulation");
                     for( int f=0 ; f<normed_uv_b.cols() ; f++ ) // loop over each uv_a
                     {
@@ -1780,21 +1821,26 @@ int main( int argc, char ** argv )
 
                         Vector4d result_X;
                         bool triangulation_status = Triangulation::MultiViewLinearLSTriangulation(
+                        // bool triangulation_status = Triangulation::MultiViewIterativeLSTriangulation(
                             _u,
                             _u_tracked, p_T_base_at__p,
                             result_X, _u_visible );
+                        monocular_d_b( f ) = result_X(2);
 
                         cout << "feat#" << f << ": triangulated=" << result_X.transpose() << "\t";
-                        cout << TermColor::YELLOW() << "stereo_depth=" << d_a(f) << "\tsf=" << sf(f) << TermColor::RESET() << endl;
+                        cout << TermColor::YELLOW() << "stereo_depth=" << d_b(f) << "\tsf=" << sf(f) << TermColor::RESET() << "\t";
+                        cout << "diff=" << abs(result_X(2) - d_b(f)) << "\t";
+                        cout << "triangulation_status=" << triangulation_status ;
+                        cout << endl;
                     }
                     cout << TermColor::BLUE() << t_multiview_triangulation.toc() << TermColor::RESET() << endl;
 
                     #endif //Multiview Triangulation
 
+
+                    #if _VIZ_ //viz
                     cout << "Multiview Triangulation Done, press any key to continue\n";
                     cv::waitKey(0);
-
-                    #if 1 //viz
                     cv::destroyWindow("dst_tracked");
                     cv::destroyWindow("dst_baseimg_with_feat_to_track");
                     #endif
@@ -1806,6 +1852,7 @@ int main( int argc, char ** argv )
 
 
                 // put data for this pair in gobal container
+                #define _GLOBAL_CONTAINER_FILL_
                 cout << "\n===== put data for this pair (idx_a=" << idx_a << ", idx_b=" << idx_b << ") in gobal container\n";
 
                 // 1. a0_T_a, b0_T_b
@@ -1833,30 +1880,68 @@ int main( int argc, char ** argv )
                 all_d_b.push_back( d_b );
                 all_sf.push_back( sf );
 
-                //--4.
+                //--4. (use the above 3 data and make change the co-ordinate frame to a0 and b0 respectively)
                 MatrixXd aX = MatrixXd::Constant( 4, normed_uv_a.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_a.cols() ; q++ ) //depth multiplication
                 {
-                    aX(0,q) = normed_uv_a(0,q) * d_a(q);
-                    aX(1,q) = normed_uv_a(1,q) * d_a(q);
-                    aX(2,q) = normed_uv_a(2,q) * d_a(q);
+                    #if 0
+                    double z = d_a(q);
+                    #else
+                    double z = monocular_d_a(q);
+                    #endif
+                    aX(0,q) = normed_uv_a(0,q) * z;
+                    aX(1,q) = normed_uv_a(1,q) * z;
+                    aX(2,q) = normed_uv_a(2,q) * z;
                     aX(3,q) = 1.0;
                 }
 
                 MatrixXd bX = MatrixXd::Constant( 4, normed_uv_b.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_b.cols() ; q++ ) //depth multiplication
                 {
-                    bX(0,q) = normed_uv_b(0,q) * d_b(q);
-                    bX(1,q) = normed_uv_b(1,q) * d_b(q);
-                    bX(2,q) = normed_uv_b(2,q) * d_b(q);
+                    #if 0
+                    double z = d_b(q);
+                    #else
+                    double z = monocular_d_b(q);
+                    #endif
+                    bX(0,q) = normed_uv_b(0,q) * z;
+                    bX(1,q) = normed_uv_b(1,q) * z;
+                    bX(2,q) = normed_uv_b(2,q) * z;
                     bX(3,q) = 1.0;
                 }
+
+                vector<bool> valids;
+                for( int q=0 ; q<normed_uv_a.cols() ; q++ )
+                {
+                    // use one of these choices.
+                    #if 1
+                    if( sf(q) > 0  )
+                        valids.push_back( true );
+                    else
+                        valids.push_back( false );
+                    #endif
+
+                    #if 0
+                    valids.push_back( true );
+                    #endif
+
+                    #if 0
+                    double far = 6.0;
+                    double near = 0.5;
+                    if( monocular_d_a(q) > near && monocular_d_a(q) < far && monocular_d_b(q) > near && monocular_d_b(q) < far )
+                        valids.push_back( true );
+                    else valids.push_back(false);
+                    #endif
+                }
+
+
+                assert( valids.size() == normed_uv_a.cols() );
 
 
                 MatrixXd a0X = a0_T_a * aX;
                 MatrixXd b0X = b0_T_b * bX;
                 all_a0X.push_back( a0X );
                 all_b0X.push_back( b0X );
+                all_valids.push_back( valids );
 
 
             } // END for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
@@ -1867,10 +1952,44 @@ int main( int argc, char ** argv )
 
             // TODO
             // gather
-
+            MatrixXd dst0, dst1;
+            MiscUtils::gather( all_a0X, all_valids, dst0 );
+            MiscUtils::gather( all_b0X, all_valids, dst1 );
+            cout << TermColor::iWHITE() ;
+            cout << "dst0:" << dst0.rows() << "x" << dst0.cols() << "\t";
+            cout << "dst1:" << dst1.rows() << "x" << dst1.cols() << "\t";
+            cout << TermColor::RESET() << endl;
 
 
             // Pose Computation here
+            // PoseComputation::alternatingMinimization
+            Matrix4d a_T_b = Matrix4d::Identity();
+            VectorXd switch_weights = VectorXd::Constant( dst0.cols() , 1.0 );
+            ElapsedTime t_alternatingminimization( "Altering Minimizations");
+            PoseComputation::alternatingMinimization( dst0, dst1, a_T_b, switch_weights );
+            cout << TermColor::BLUE() << t_alternatingminimization.toc() << TermColor::RESET() << endl;
+
+            #if 1
+            MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
+            RosPublishUtils::publish_3d( marker_pub, AAA,
+                "AAA (red)", 0,
+                255,0,0, float(1.0), 1.5 );
+
+            MatrixXd BBB = all_odom_poses[ 1 ][0].inverse() * vec_surf_map[ 1 ]->get_surfel_positions();
+            RosPublishUtils::publish_3d( marker_pub, BBB,
+                "BBB (green)", 0,
+                0,255,0, float(1.0), 1.5 );
+
+
+            MatrixXd YYY = a_T_b * BBB;
+            RosPublishUtils::publish_3d( marker_pub, YYY,
+                "a_T_b x BBB (cyan)", 0,
+                0,255,255, float(1.0), 1.5 );
+
+
+            cout << "\n pose computation done, press any key to continue drawing more pair of images\n";
+            cv::waitKey(0);
+            #endif
         }
 
         if( ch == '9' ) // visualization for normals of a point cloud

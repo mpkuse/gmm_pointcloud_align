@@ -49,14 +49,15 @@ Mat_<double> IterativeLinearLSTriangulation(Point3d u,    //homogenous image poi
 
 double Triangulation::IterativeLinearLSTriangulation(
     const Vector3d& u,  const Matrix4d& P,
-    const Vector3d& u1,    const Matrix4d& P1   )
+    const Vector3d& u1,    const Matrix4d& P1,
+    Vector4d& X )
 {
     // I am not too sure of this implementation check in the book.
 
     double wi = 1, wi1 = 1;
     const double EPSILON = 1e-7;
     // Mat_<double> X(4,1);
-    Vector4d X;
+    // Vector4d X;
     LinearLSTriangulation(u,P,u1,P1, X);
     for (int i=0; i<10; i++) { //Hartley suggests 10 iterations at most
 
@@ -152,7 +153,7 @@ double Triangulation::IterativeLinearLSTriangulation(
 }
 
 
-
+#define square_me( x ) x*x
 
 // #define __Triangulation__MultiViewLinearLSTriangulation_(msg) msg;
 #define __Triangulation__MultiViewLinearLSTriangulation_(msg) ;
@@ -186,6 +187,7 @@ bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
     // [ v r_3 - r_2 ] [ y ]    =   [ty - v*tz]
     //                 [ z ]        []
     int c=0;
+    int n_good_parallax = 0;
     for( int i=0 ; i<N ; i++ )
     {
         if( status[i] == false )
@@ -194,14 +196,43 @@ bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
         #if 1
         Matrix3d p_R_base = p_T_base[i].topLeftCorner(3,3);
         Vector3d p_t_base = p_T_base[i].col(3).topRows(3);
+
+
         A.row( 2*c + 0 ) = p_R_base.row(2) * tracked_u[i](0) - p_R_base.row(0);
         b(2*c + 0) = p_t_base(0) - tracked_u[i](0) * p_t_base(2);
 
         A.row( 2*c + 1 ) = p_R_base.row(2) * tracked_u[i](1) - p_R_base.row(1);
         b(2*c + 1) = p_t_base(1) - tracked_u[i](1) * p_t_base(2);
         #endif
+
+
+        #if 1
+        double baseline = p_t_base.norm();
+        // cout << "baseline=" << baseline << "\n";
+
+        // double f = baseline*10 ;//1.0 / ( 1.0 + abs(baseline)*5 );
+        double f = square_me(base_u(0) - tracked_u[i](0)) + square_me( base_u(1) - tracked_u[i](1)); //< more weight for higher parallax
+        cout << "i=" << i << " f=" << f << endl;
+        if( f*385.*385.  < 16. )
+            f = 1e-5;
+        else
+            n_good_parallax++;
+
+        A.row( 2*c + 0 ) *= f;
+        b(2*c + 0) *= f;
+
+        A.row( 2*c + 1 ) *= f ;
+        b(2*c + 1) *= f;
+        #endif
+
+
+
         c++;
     }
+
+    cout << "n_good_parallax = " << n_good_parallax << endl;
+    if( n_good_parallax< 2 )
+        return false;
 
     // equation for base
     A.row(2*N_true) << -1.0, 0.0, base_u(0);
@@ -225,6 +256,98 @@ bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
 
     __Triangulation__MultiViewLinearLSTriangulation_(
     cout << "||AX-b|| = " << (A * X - b).squaredNorm() << endl; )
+    return true;
+
+}
+
+
+
+// #define __Triangulation__MultiViewIterativeLSTriangulation_(msg) msg;
+#define __Triangulation__MultiViewIterativeLSTriangulation_(msg) ;
+bool Triangulation::MultiViewIterativeLSTriangulation( const Vector3d& base_u,
+    const vector<Vector3d>& tracked_u,   const vector<Matrix4d>& p_T_base,
+    Vector4d& result_X,  const vector<bool>status )
+{
+    int N = tracked_u.size();
+    assert( N>0 );
+    assert( p_T_base.size() == N );
+
+    bool use_all = false;
+    if( status.size() == 0 )
+        use_all = true;
+    else {
+        use_all = false;
+        assert( status.size() == N );
+    }
+
+    MultiViewLinearLSTriangulation( base_u, tracked_u, p_T_base, result_X, status );
+
+    int N_true = total_true( status );
+    // cout << "[Triangulation::MultiViewIterativeLSTriangulation]this u is visible in " << N_true << " adjacent images out of total " << N << " tracked images\n";
+
+    // Matrix<double, Dynamic, 3>  A = Matrix<double, Dynamic, 3>::Zero( 2*N_true + 2, 3  ); // N_true x 3
+    MatrixXd A = MatrixXd::Zero( 2*N_true + 2, 3);
+    VectorXd b = VectorXd::Zero( 2*N_true + 2 );
+
+
+    for( int itr=0 ; itr<10 ; itr++ ) {
+
+
+        // 2 equations per tracking
+        // note: R = [ r_1; r_2; r_3 ], r1 is 1st row of R;    t = [tx; ty; tz]
+        // [ u r_3 - r_1 ] [ x ]        [tx - u*tz]
+        // [ v r_3 - r_2 ] [ y ]    =   [ty - v*tz]
+        //                 [ z ]        []
+        int c=0;
+        for( int i=0 ; i<N ; i++ )
+        {
+            if( status[i] == false )
+                continue;
+
+
+
+            #if 1
+            Matrix3d p_R_base = p_T_base[i].topLeftCorner(3,3);
+            Vector3d p_t_base = p_T_base[i].col(3).topRows(3);
+
+            // get a suitable w , this follows Hartley Zizzerman's book, Chp Triangulation section 5.2
+            double w0 = 1.0 / (p_R_base.row(2) * result_X.topRows(3));
+
+
+            A.row( 2*c + 0 ) = ( p_R_base.row(2) * tracked_u[i](0) - p_R_base.row(0) ) * w0;
+            b(2*c + 0) = ( p_t_base(0) - tracked_u[i](0) * p_t_base(2) ) * w0;
+
+            A.row( 2*c + 1 ) = ( p_R_base.row(2) * tracked_u[i](1) - p_R_base.row(1) ) * w0;
+            b(2*c + 1) = ( p_t_base(1) - tracked_u[i](1) * p_t_base(2) ) * w0;
+            #endif
+            c++;
+        }
+
+        // equation for base
+        double w0 = 1.0 / result_X(2); //denom = [0,0,1] * [x y z]^{t}
+        A.row(2*N_true) << -1.0*w0, 0.0, base_u(0)*w0;
+        b(2*N_true) = 0.0;
+        A.row(2*N_true+1) << 0.0, -1.0*w0, base_u(1) * w0;
+        b(2*N_true+1) = 0.0;
+
+
+        // Solve minimize_x ||Ax - b||
+        __Triangulation__MultiViewIterativeLSTriangulation_(
+        cout << "N_true=" << N_true << "\t";
+        cout << "A: " << A.rows() << "x" << A.cols() << "\t" << "b: " << b.rows() << "x" << b.cols() << endl;)
+        VectorXd X = A.bdcSvd(ComputeThinU | ComputeThinV).solve(b);
+        // VectorXd X = A.bdcSvd().solve(b);
+        // VectorXd X = A.FullPivHouseholderQR().solve(b);
+        result_X(0) = X(0);
+        result_X(1) = X(1);
+        result_X(2) = X(2);
+        result_X(3) = 1.0;
+
+
+        __Triangulation__MultiViewIterativeLSTriangulation_(
+        cout << "||AX-b|| = " << (A * X - b).squaredNorm() << endl; )
+
+    }
 
 
 }

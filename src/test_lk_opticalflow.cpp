@@ -40,7 +40,60 @@ vector<string> im_list =
 };
 
 
+#include "OpticalFlowTracker.h"
+int main()
+{
+    cout << "OpticalFlowTracker() test\n";
+    OpticalFlowTracker tracker( 21, 3 );
+    // tracker.setKeyframe( )
 
+
+    cout << "n images=" << im_list.size() << endl;
+    for( int i=0 ; i<(int)im_list.size() ; i++ )
+    {
+        cout << "---\n" << im_list[i] << endl;
+        cv::Mat curr_im = cv::imread( im_path + "/" + im_list[i], 0 );
+        cout << "im info " << MiscUtils::cvmat_info( curr_im ) << endl;
+        cout << "-\n";
+        cv::imshow( "curr_im", curr_im );
+
+        if( i%5 == 0 )
+        {
+            tracker.setKeyframe( curr_im, 500 );
+
+            #if 1
+            assert( tracker.isKeyFrameSet() );
+            cv::Mat dst;
+            MiscUtils::plot_point_sets( tracker.keyframe_image(), tracker.keyframe_uv(), dst, cv::Scalar(255,0,0),true, "n_features="+to_string(tracker.keyframe_nfeatures()) );
+            cv::imshow( "goodFeaturesToTrack", dst );
+            #endif
+        }
+        else
+        {
+            // int successfully_tracked = tracker.trackFromKeyframe( curr_im );
+            int successfully_tracked = tracker.trackFromPrevframe( curr_im );
+            // or
+            // int successfully_tracked = tracker.n_tracked_success();
+
+
+            #if 1
+            assert( tracker.isKeyFrameSet() );
+            cv::Mat dst;
+            string msg ="n_features="+to_string(tracker.keyframe_nfeatures())+";successfully tracked = " + to_string(successfully_tracked) ;
+            MiscUtils::plot_point_sets_masked( curr_im,
+                tracker.tracked_uv(), tracker.tracked_status(),
+                dst, cv::Scalar(255,0,0),true, msg );
+            cv::imshow( "tracked", dst );
+            #endif
+        }
+
+        cv::waitKey(0);
+
+    }
+
+}
+
+#if 0
 int main()
 {
     cout << "helow test_lk\n";
@@ -56,11 +109,6 @@ int main()
         curr_im = cv::imread( im_path + "/" + im_list[i], 0 );
         cout << "im info " << MiscUtils::cvmat_info( curr_im ) << endl;
         // cv::imshow( "curr_im", curr_im );
-
-
-
-
-
 
         if( i==0 )
         {
@@ -118,3 +166,4 @@ int main()
         prev_X = curr_X;
     }
 }
+#endif

@@ -372,7 +372,7 @@ float PoseComputation::alternatingMinimization( const MatrixXd& aX, const Matrix
         quantile_info_on_switch_weights( switch_weights, quantile, n_quantiles );
         // print_info_on_switch_weights( switch_weights );
 
-        cout << "quantile: " << quantile.transpose() / double(N) << endl;
+        cout << "quantile: " << quantile.transpose().cast<float>() / double(N) << endl;
         if( quantile(n_quantiles-1) / float(N) > 0.75 ) {
             converged = true;
             break;

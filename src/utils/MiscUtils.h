@@ -73,6 +73,11 @@ public:
     static int total_positives( const vector<uchar>& V );
 
     static VectorXd to_eigen( const vector<uchar>& V );
+
+
+    static void reduce_vector(vector<cv::Point2f> &v, const vector<uchar> status); //inplace
+    static void reduce_vector(const vector<cv::Point2f> &v, const vector<uchar> status, vector<cv::Point2f>& out );
+
     //---------------------------- Conversions ---------------------------------//
 
 

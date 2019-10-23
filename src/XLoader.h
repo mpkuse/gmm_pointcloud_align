@@ -149,6 +149,12 @@ public:
 // #define _retrive_debug_( msg ) msg;
 #define _retrive_debug_( msg ) ;
 
+ros::Time retrive_timestamp_from_json_datanode( json data_node )
+{
+    int64_t t_sec = data_node["stampNSec"];
+    ros::Time stamp = ros::Time().fromNSec( t_sec );
+    return stamp;
+}
 
 bool retrive_image_data_from_json_datanode( json data_node,
         // ros::Time& stamp, Matrix4d& w_T_c,

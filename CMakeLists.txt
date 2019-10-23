@@ -273,6 +273,10 @@ add_executable( inspect_data
     src/inspect_data.cpp
     )
 
+    add_executable( test_inspect_checkpoint
+        src/test_inspect_checkpoint.cpp
+        ${KuseUtils}
+        )
 
 add_executable( test_slic
     src/test_slic.cpp
@@ -298,6 +302,7 @@ add_executable( test_posecomputation
 add_executable( test_lk_opticalflow
     src/test_lk_opticalflow.cpp
     ${KuseUtils}
+    src/OpticalFlowTracker.cpp
 )
 
 add_executable( test_triangulation
@@ -305,6 +310,15 @@ add_executable( test_triangulation
 #    ${KuseUtils}
     src/Triangulation.cpp
 )
+
+
+add_executable( test_monocular_depth
+    src/test_monocular_depth.cpp
+    ${KuseUtils}
+    src/Triangulation.cpp
+    src/OpticalFlowTracker.cpp
+    src/utils/PointFeatureMatching.cpp
+    )
 
 
 ## Rename C++ executable without prefix
@@ -375,6 +389,10 @@ target_link_libraries( test_objloader
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
       )
+      target_link_libraries( test_inspect_checkpoint
+         ${catkin_LIBRARIES}
+         ${OpenCV_LIBS}
+       )
 
       target_link_libraries( test_slic
          ${catkin_LIBRARIES}
@@ -409,6 +427,12 @@ target_link_libraries( test_triangulation
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
  )
+
+
+ target_link_libraries( test_monocular_depth
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+  )
 
 #############
 ## Install ##

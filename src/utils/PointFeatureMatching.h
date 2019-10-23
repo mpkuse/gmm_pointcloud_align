@@ -139,6 +139,13 @@ public:
     //      normed_uv [output]: The resulting imaged co-ordinates (uv) to normalized. normed_uv := K.inverse() * [u_i;v_i;1]
     static bool image_coordinates_to_normalized_image_coordinates( const camodocal::CameraPtr camera,
         const MatrixXd& uv, MatrixXd& normed_uv );
+    static MatrixXd image_coordinates_to_normalized_image_coordinates(
+        const camodocal::CameraPtr camera,
+        const MatrixXd& uv );
+
+
+    // Given image co-ordinates and the depth_image, will lookup the depth values at those image co-ordinates
+    static VectorXd depth_at_image_coordinates( const MatrixXd& uv, const cv::Mat& depth_image );
 
 
 private:

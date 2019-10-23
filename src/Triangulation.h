@@ -36,7 +36,7 @@ public:
     // Returns:
     //      The depth at this point
     static double IterativeLinearLSTriangulation( const Vector3d& u,  const Matrix4d& P,
-                                        const Vector3d& u1,    const Matrix4d& P1   );
+                                        const Vector3d& u1,    const Matrix4d& P1, Vector4d& result_X   );
 
     // Triangulate : Basic Least squares
     // Params:
@@ -66,6 +66,9 @@ public:
         const vector<Vector3d>& tracked_u,   const vector<Matrix4d>& p_T_base,
         Vector4d& result_X,  const vector<bool>status=vector<bool>() );
 
+    static bool MultiViewIterativeLSTriangulation( const Vector3d& base_u,
+        const vector<Vector3d>& tracked_u,   const vector<Matrix4d>& p_T_base,
+        Vector4d& result_X,  const vector<bool>status=vector<bool>() );
 
 private:
 

@@ -214,6 +214,25 @@ VectorXd MiscUtils::to_eigen( const vector<uchar>& V )
     return out;
 }
 
+void MiscUtils::reduce_vector(vector<cv::Point2f> &v, const vector<uchar> status) //inplace
+{
+    int j = 0;
+    for (int i = 0; i < int(v.size()); i++)
+       if (status[i])
+           v[j++] = v[i];
+   v.resize(j);
+}
+
+void MiscUtils::reduce_vector(const vector<cv::Point2f> &v, const vector<uchar> status, vector<cv::Point2f>& out )
+{
+    out.clear();
+    for (int i = 0; i < int(v.size()); i++)
+       if (status[i])
+           out.push_back( v[i] );
+
+}
+
+
 void MiscUtils::imshow( const string& win_name, const cv::Mat& im, float scale )
 {
     if( scale == 1.0 ) {
