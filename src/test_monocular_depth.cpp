@@ -109,6 +109,7 @@ int main()
             #endif
 
 
+            #if 1
             // triangulate
             MatrixXd kf_uv = tracker.keyframe_uv();
             MatrixXd c_uv = tracker.tracked_uv();
@@ -152,6 +153,7 @@ int main()
                 cout << endl;
             }
             cout << "ngood=" << ngood << endl;
+            #endif
 
         }
 

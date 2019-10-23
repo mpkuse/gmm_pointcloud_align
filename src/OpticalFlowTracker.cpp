@@ -172,14 +172,48 @@ int OpticalFlowTracker::trackFromPrevframe( const cv::Mat curr_im ) //< returns 
     )
 
 
-    #if 0
+
+    #if 1
+
     // F-test
     // TODO: compute fundamental matrix only on the successfully tracked out do MiscUtils::reduce_vector.
     //       after that set the status to 0 for thise tracked points that dont follow this F.
 
     vector<uchar> status_ftest;
-    cv::findFundamentalMat(kf_p, curr_p, cv::FM_RANSAC, 5.0, 0.99, status_ftest);
-    cout << "After F-test only " << MiscUtils::total_positives( status_ftest ) << " remain " << endl;
+    vector<cv::Point2f> reduced_prev_p, reduced_curr_p;
+    MiscUtils::reduce_vector( prev_p, status, reduced_prev_p );
+    MiscUtils::reduce_vector( curr_p, status, reduced_curr_p );
+    cv::Mat F = cv::findFundamentalMat(reduced_prev_p, reduced_curr_p, cv::FM_RANSAC, 5.0, 0.99, status_ftest);
+
+
+    // cout << "[OpticalFlowTracker::trackFromPrevframe] findFundamentalMat=\n" << F << endl;
+
+
+
+    for( int l=0 ; l<status.size() ; l++ )
+    {
+        if( status[l] > 0 )
+        {
+            double d = ud_F_u( curr_p[l], F, prev_p[l]  ) ;
+            if( abs(d) > 0.01 ) {
+                status[l] = 0;
+            }
+
+
+            // if( abs(d) > 0.01 ) {
+                // cout << TermColor::RED() ;
+            // }
+            // cout << "l=" << l << " tracking ok  " << d << TermColor::RESET() ;
+        }
+        else {
+            // cout << "l=" << l << "tracking failed";
+        }
+        // cout << endl;
+    }
+
+    __OpticalFlowTracker__trackFromPrevframe__(
+    cout << "[OpticalFlowTracker::trackFromPrevframe] After F-test only " << MiscUtils::total_positives( status ) << " remain " << endl;)
+
     #endif
 
 

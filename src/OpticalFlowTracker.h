@@ -88,7 +88,21 @@ private:
         err.clear();
 
         prev_im = cv::Mat();
-        prev_p.clear(); 
+        prev_p.clear();
+    }
+
+    double ud_F_u( const cv::Point2f& ud, const cv::Mat& F, const cv::Point2f& u )
+    {
+        Vector3d e_ud, e_u;
+        e_ud << ud.x, ud.y, 1.0;
+        e_u << u.x, u.y, 1.0;
+
+        Matrix3d e_F;
+        cv::cv2eigen( F, e_F );
+
+        double d = e_ud.transpose() * e_F * e_u;
+        return d;
+
     }
 
 
