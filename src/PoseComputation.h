@@ -52,6 +52,7 @@ public:
     //      sf [input/output]: The switches after the optimization has terminated. If the size of this is equal to N
     //                       then will use this to initialize the switch flags. else will use 1.0 as initialization for the switches
     static bool refine( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& a_T_b, VectorXd& sf );
+    static bool refine_weighted( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& a_T_b, const VectorXd& sf );
 
 
     // Given 2 point sets and a transform, test how good the transform is
@@ -125,10 +126,11 @@ public:
 
 class EuclideanDistanceResidue {
 public:
-    EuclideanDistanceResidue( const Vector3d& Xi, const Vector3d& Xid )
+    EuclideanDistanceResidue( const Vector3d& Xi, const Vector3d& Xid, const double wt=1.0 )
     {
         this->Xi = Xi;
         this->Xid = Xid;
+        this->weight = sqrt(wt);
     }
 
     template <typename T>
@@ -150,26 +152,27 @@ public:
         Eigen::Matrix<T,3,1> e;
         e = eigen_Xi - (  eigen_q.toRotationMatrix() * eigen_Xid + eigen_t );
 
-        residual[0] = e(0);
-        residual[1] = e(1);
-        residual[2] = e(2);
+        residual[0] = T(this->weight) * e(0);
+        residual[1] = T(this->weight) * e(1);
+        residual[2] = T(this->weight) * e(2);
 
         return true;
     }
 
 
 
-    static ceres::CostFunction* Create(const Vector3d& _Xi, const Vector3d& Xid)
+    static ceres::CostFunction* Create(const Vector3d& _Xi, const Vector3d& Xid, const double wt=1.0)
     {
         return ( new ceres::AutoDiffCostFunction<EuclideanDistanceResidue,3,4,3>
         (
-        new EuclideanDistanceResidue(_Xi,Xid)
+        new EuclideanDistanceResidue(_Xi,Xid, wt)
         )
         );
     }
 
     private:
     Vector3d Xi, Xid;
+    double weight;
 };
 
 

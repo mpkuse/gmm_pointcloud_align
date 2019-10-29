@@ -439,12 +439,15 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     // cv::imshow( "image_b", image_b );
     ElapsedTime elp;
 
-    #if 0
+    #if 1
     // -- GMS Matcher
     // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
     elp.tic();
     StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
     cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
+
+    // StaticPointFeatureMatching::gms_point_feature_matches_scaled( image_a, image_b, uv_a, uv_b, 0.5 );
+    // cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches_scaled returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
 
     cout << "uv_a: " << uv_a.rows() << "x" << uv_a.cols() << "\t";
     cout << "uv_b: " << uv_b.rows() << "x" << uv_b.cols() << "\t";
@@ -462,7 +465,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     #endif
 
 
-    #if 1
+    #if 0
     // -- Simple ORB Matcher
     cout << TermColor::GREEN() << "=== Point feature matcher (ORB) for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
 
@@ -577,7 +580,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     // cv::imshow( "image_b", image_b );
     ElapsedTime elp;
 
-    #if 0
+    #if 1
     // -- GMS Matcher
     // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
     elp.tic();
@@ -600,7 +603,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     #endif
 
 
-    #if 1
+    #if 0
     // -- Simple ORB Matcher
     cout << TermColor::GREEN() << "[image_correspondences] Simple ORB Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
 
@@ -679,6 +682,7 @@ void print_usage( cv::Mat& status )
     msg += "1: Draw random image pair, map point feature to 3dpoints;";
     msg += "2: align3d3d with depth refinement;";
     msg += "3: monocular;";
+    msg += "4: manual pose input;";
     msg += "9:viz 3d model normals;";
     msg += "ESC: quit;";
     MiscUtils::append_status_image( status, msg, .45, cv::Scalar(0,0,0), cv::Scalar(255,255,255) );
@@ -689,6 +693,10 @@ void print_usage( cv::Mat& status )
 #if 1
 int main( int argc, char ** argv )
 {
+
+    srand( 0 ); //fixed seed
+    // srand (time(NULL));
+
     //
     // Ros INIT
     //
@@ -1331,7 +1339,7 @@ int main( int argc, char ** argv )
 
             // random pairs, image correspondences only
             std::map< std::pair<int,int>, bool > repeatl;
-            for( int rand_itr=0 ; rand_itr<15 ; rand_itr++ )
+            for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
             {
                 cout << "\n-----------------------\n";
                 cout << "--- rand_itr=" << rand_itr ;
@@ -1366,7 +1374,8 @@ int main( int argc, char ** argv )
                 image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
 
                 int n_matches = uv_a.cols();
-                if( n_matches < 5 ) {
+                if( n_matches < 50 ) { //for gmsmatcher keep a 10x threshold
+                // if( n_matches < 5 ) {
                     cout << "n_matches=" << n_matches << " these are too few..ignore\n";
                     continue;
                 }
@@ -1393,7 +1402,7 @@ int main( int argc, char ** argv )
 
 
                 // make this to 1 to visulize optical flow
-                #define _VIZ_ 1
+                #define _VIZ_ 0
 
                 //----
                 //--- Depth Estimation from Optical Flow and Triangulation. Will also use odometry poses
@@ -1401,7 +1410,7 @@ int main( int argc, char ** argv )
                 //--Seq-A , A+1, A+2,...
                 #define __SEQ_A_MONOCULAR__ 0
 
-                #if 1
+                #if 0
                 VectorXd monocular_d_a = VectorXd::Zero( uv_a.cols() );
                 {
                     //---- the `base`
@@ -1431,7 +1440,7 @@ int main( int argc, char ** argv )
                     vector<Matrix4d> p_T_base_at__p; //the pose of base wrt camera-p. for every p
                     // vector< vector<uchar> > status_at__p; // status of the tracked points at p.
                     vector<VectorXd> status_at__p; // status of the tracked points at p.
-                    for( int  p=-6 ; p<6 ; p++ )
+                    for( int  p=-6 ; p<8 ; p++ )
                     {
                         cout <<  "\tp=" << p << endl;
                         json data_node_a__p = STATE["DataNodes"][idx_a+p];
@@ -1628,7 +1637,7 @@ int main( int argc, char ** argv )
 
                 //--Seq-B, B+1, B+2,...
                 #define __SEQ_B_MONOCULAR__ 0
-                #if 1
+                #if 0
                 VectorXd monocular_d_b = VectorXd::Zero( uv_b.cols() );
                 {
                     //---- the `base`
@@ -1884,7 +1893,7 @@ int main( int argc, char ** argv )
                 MatrixXd aX = MatrixXd::Constant( 4, normed_uv_a.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_a.cols() ; q++ ) //depth multiplication
                 {
-                    #if 0
+                    #if 1
                     double z = d_a(q);
                     #else
                     double z = monocular_d_a(q);
@@ -1898,7 +1907,7 @@ int main( int argc, char ** argv )
                 MatrixXd bX = MatrixXd::Constant( 4, normed_uv_b.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_b.cols() ; q++ ) //depth multiplication
                 {
-                    #if 0
+                    #if 1
                     double z = d_b(q);
                     #else
                     double z = monocular_d_b(q);
@@ -1925,7 +1934,7 @@ int main( int argc, char ** argv )
                     #endif
 
                     #if 0
-                    double far = 6.0;
+                    double far = 5.0;
                     double near = 0.5;
                     if( monocular_d_a(q) > near && monocular_d_a(q) < far && monocular_d_b(q) > near && monocular_d_b(q) < far )
                         valids.push_back( true );
@@ -1967,7 +1976,67 @@ int main( int argc, char ** argv )
             VectorXd switch_weights = VectorXd::Constant( dst0.cols() , 1.0 );
             ElapsedTime t_alternatingminimization( "Altering Minimizations");
             PoseComputation::alternatingMinimization( dst0, dst1, a_T_b, switch_weights );
+            cout << "After alternatingMinimization: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+            PoseComputation::refine_weighted( dst0, dst1, a_T_b, switch_weights );
+            cout << "After refine: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
             cout << TermColor::BLUE() << t_alternatingminimization.toc() << TermColor::RESET() << endl;
+
+
+            //------- Refine Y, tx,ty,tz. get pitch and roll from odometry
+            cout << TermColor::RED() << "---\n" << TermColor::RESET();
+            cout << "computed a_T_b   = " << PoseManipUtils::prettyprintMatrix4d( a_T_b, " " ) << endl;
+
+            Matrix4d odometry_a_T_b = w_T_a0.inverse() * w_T_b0;
+            cout << "odometry_a_T_b = " << PoseManipUtils::prettyprintMatrix4d( odometry_a_T_b, " " ) << endl;
+
+            Matrix4d odometry__ad_T_bd = xloader.imu_T_cam * ( w_T_a0.inverse() * w_T_b0 ) * xloader.imu_T_cam.inverse();
+            cout << "odometry__ad_T_bd = " << PoseManipUtils::prettyprintMatrix4d( odometry__ad_T_bd, " " ) << endl;
+            Matrix4d computed__ad_T_bd = xloader.imu_T_cam * a_T_b * xloader.imu_T_cam.inverse();
+            cout << "computed__ad_T_bd = " << PoseManipUtils::prettyprintMatrix4d( computed__ad_T_bd, " " ) << endl;
+
+            // {
+                // get pitch and roll from `odometry__ad_T_bd`
+                double odom_ad_ypr_bd[5], odom_ad_xyz_bd[5];
+                PoseManipUtils::eigenmat_to_rawyprt( odometry__ad_T_bd, odom_ad_ypr_bd, odom_ad_xyz_bd );
+
+
+                // get yaw, tx, ty, tz from `computed__ad_T_bd`
+                double comp_ad_ypr_bd[5], comp_ad_xyz_bd[5];
+                PoseManipUtils::eigenmat_to_rawyprt( computed__ad_T_bd, comp_ad_ypr_bd, comp_ad_xyz_bd );
+
+
+                // ^^^ at this point the yaw, pitch, roll, tx, ty tz are in imu frame of reference
+                //     The 4DOF optimization need to happen in imu frame of reference
+                // refine( dst0, dst1, imu_T_cam, yaw, pitch, roll, tx, ty, tz )
+                //                                 ^                 ^   ^   ^
+                #if 0
+                PoseComputation::refine4DOF( dst0, dst1, imu_T_cam,
+                    comp_ad_ypr_bd[0], odom_ad_ypr_bd[1], odom_ad_ypr_bd[2],
+                    comp_ad_xyz_bd[0],  comp_ad_xyz_bd[1],  comp_ad_xyz_bd[2]
+                 )
+                 #endif
+
+                // after optimization, convert the refined pose to camera frame of reference
+                double hybrid_ad_ypr_bd[5], hybrid_ad_xyz_bd[5];
+                hybrid_ad_ypr_bd[0] = comp_ad_ypr_bd[0];
+                hybrid_ad_ypr_bd[1] = comp_ad_ypr_bd[1];
+                hybrid_ad_ypr_bd[2] = comp_ad_ypr_bd[2];
+
+                hybrid_ad_xyz_bd[0] = comp_ad_xyz_bd[0];
+                hybrid_ad_xyz_bd[1] = comp_ad_xyz_bd[1];
+                hybrid_ad_xyz_bd[2] = comp_ad_xyz_bd[2];
+
+                Matrix4d hybrid_ad_T_bd, hybrid_a_T_b;
+                PoseManipUtils::rawyprt_to_eigenmat( hybrid_ad_ypr_bd, hybrid_ad_xyz_bd, hybrid_ad_T_bd);
+                hybrid_a_T_b =  xloader.imu_T_cam.inverse() * hybrid_ad_T_bd *  xloader.imu_T_cam;
+                cout << "hybrid_ad_T_bd = " << PoseManipUtils::prettyprintMatrix4d( hybrid_ad_T_bd, " " ) << endl;
+                cout << "hybrid_a_T_b = " << PoseManipUtils::prettyprintMatrix4d( hybrid_a_T_b, " " ) << endl;
+
+                // cout << "a_T_b := hybrid_a_T_b\n";
+                // a_T_b = hybrid_a_T_b;
+            // }
+
+            cout << TermColor::RED() << "---\n" << TermColor::RESET();
 
             #if 1
             MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
@@ -1986,10 +2055,56 @@ int main( int argc, char ** argv )
                 "a_T_b x BBB (cyan)", 0,
                 0,255,255, float(1.0), 1.5 );
 
+            MatrixXd YYYx = odometry_a_T_b * BBB;
+            RosPublishUtils::publish_3d( marker_pub, YYYx,
+                "odometry_a_T_b x BBB (yellow)", 0,
+                255,255,0, float(1.0), 1.5 );
+
 
             cout << "\n pose computation done, press any key to continue drawing more pair of images\n";
             cv::waitKey(0);
             #endif
+        }
+
+        if( ch == '4' ) //manually input pose for visualization
+        {
+            cout << TermColor::GREEN() << "==== Manual Pose Input ====\n" << TermColor::RESET();
+
+            //
+            double ypr[4] = {-32.145,32.535,-14.899};
+            double xyz[4] = {-1.113,-0.113,0.122};
+
+            cout << "Keyboard input ypr a_T_b (space separated):";
+            cin >> ypr[0] >> ypr[1] >> ypr[2];
+            cout << "Keyboard input xyz a_T_b (space separated):";
+            cin >> xyz[0] >> xyz[1] >> xyz[2];
+
+            cout << "You input ypr=" << TermColor::GREEN() << ypr[0] << ", " << ypr[1] << ", " << ypr[2] << "\t";
+            cout << "xyz=" << xyz[0] << ", " << xyz[1] << ", " << xyz[2] << TermColor::RESET() << endl;
+
+            Matrix4d a_T_b = Matrix4d::Identity();
+            PoseManipUtils::rawyprt_to_eigenmat( ypr, xyz, a_T_b );
+            cout << "a_T_b: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+
+
+            MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
+            RosPublishUtils::publish_3d( marker_pub, AAA,
+                "AAA (red)", 0,
+                255,0,0, float(1.0), 1.5 );
+
+            MatrixXd BBB = all_odom_poses[ 1 ][0].inverse() * vec_surf_map[ 1 ]->get_surfel_positions();
+            RosPublishUtils::publish_3d( marker_pub, BBB,
+                "BBB (green)", 0,
+                0,255,0, float(1.0), 1.5 );
+
+
+            MatrixXd YYY = a_T_b * BBB;
+            RosPublishUtils::publish_3d( marker_pub, YYY,
+                "a_T_b x BBB (cyan)", 0,
+                0,255,255, float(1.0), 1.5 );
+
+
+
         }
 
         if( ch == '9' ) // visualization for normals of a point cloud

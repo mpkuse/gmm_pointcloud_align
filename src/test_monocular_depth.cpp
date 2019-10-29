@@ -121,6 +121,8 @@ int main()
 
             VectorXd kf_z = StaticPointFeatureMatching::depth_at_image_coordinates( kf_uv, kf_depth_image );
 
+            Matrix4d c_T_kf = w_T_c.inverse() * w_T_kf;
+            cout << "baseline (motion stereo)=" << c_T_kf.col(3).topRows(3).norm() << endl;
 
             int ngood = 0;
             for( int h=0 ; h<kf_uv.cols() ; h++ ) // triangulate each tracked point
@@ -137,7 +139,6 @@ int main()
                 cout << "parallax=" << setw(6) <<  sqrt( (del_u*del_u + del_v*del_v) ) << "\t";
 
                 Vector4d result_X;
-                Matrix4d c_T_kf = w_T_c.inverse() * w_T_kf;
                 Triangulation::IterativeLinearLSTriangulation(
                     kf_normed_uv.col(h), Matrix4d::Identity(),
                     c_normed_uv.col(h), c_T_kf, result_X );

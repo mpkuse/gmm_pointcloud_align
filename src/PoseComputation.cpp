@@ -161,6 +161,7 @@ bool PoseComputation::refine( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& 
 {
     assert( aX.rows() == 4 && bX.rows() == 4 && aX.cols() == bX.cols() && aX.cols() > 0 );
 
+
     _PoseComputation__refine_info(
     cout << TermColor::iGREEN() << "=== PoseComputation::refine input size = " << aX.rows() << "x" << aX.cols() << TermColor::RESET() << endl;
     ElapsedTime _t; _t.tic();
@@ -199,6 +200,12 @@ bool PoseComputation::refine( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& 
     }
     ceres::LocalParameterization *quaternion_parameterization = new ceres::QuaternionParameterization;
     problem.SetParameterization( T_cap_q, quaternion_parameterization );
+
+
+    for( int i=0 ; i<aX.cols() ; i++ ) {
+        // if( refine_switch_weights == false )
+            problem.SetParameterBlockConstant( &s[i] );
+    }
 
 
 
@@ -240,7 +247,7 @@ bool PoseComputation::refine( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& 
         cout << TermColor::GREEN() << "converged :)\n" << TermColor::RESET();)
     }
 
-    #if 1
+    #if 0
     // diff at every point
     _PoseComputation__refine_info (
     MatrixXd diff = aX - a_T_b * bX;
@@ -298,6 +305,114 @@ bool PoseComputation::refine( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& 
     return true;
 }
 
+bool PoseComputation::refine_weighted( const MatrixXd& aX, const MatrixXd& bX, Matrix4d& a_T_b, const VectorXd& sf )
+{
+    assert( aX.rows() == 4 && bX.rows() == 4 && aX.cols() == bX.cols() && aX.cols() > 0 );
+
+
+    _PoseComputation__refine_info(
+    cout << TermColor::iGREEN() << "=== PoseComputation::refine_weighted input size = " << aX.rows() << "x" << aX.cols() << TermColor::RESET() << endl;
+    ElapsedTime _t; _t.tic();
+    )
+
+    //--- Initial Guess
+    Matrix4d a_Tcap_b = a_T_b;
+    double T_cap_q[10], T_cap_t[10]; //quaternion and translation
+    PoseManipUtils::eigenmat_to_raw( a_Tcap_b, T_cap_q, T_cap_t );
+    _PoseComputation__refine_info(
+        cout << "Initial Estimate: " << PoseManipUtils::prettyprintMatrix4d( a_Tcap_b ) << endl;)
+
+    #if 0
+    // switch constraints
+    double * s = new double [aX.cols()];
+    if( sf.size() == aX.cols()  ) {
+        _PoseComputation__refine_info( cout << "Will use input sf as initial guess for switch weights\n"; )
+        for( int i=0; i<aX.cols() ; i++ ) s[i] = sf(i);
+    }
+    else {
+        _PoseComputation__refine_info( cout << "Will initialize switch weights as 1.0\n"; )
+         for( int i=0; i<aX.cols() ; i++ ) s[i] = 1.0;
+     }
+     #endif
+
+    //--- Setup Residues
+    ceres::Problem problem;
+    _PoseComputation__refine_info( cout << "Setup " << aX.cols() << " residue terms\n"; )
+    for( int i=0 ; i<aX.cols() ; i++ )
+    {
+        auto norm = new CauchyLoss(.05); // NULL
+        CostFunction* cost_function = EuclideanDistanceResidue::Create( aX.col(i).head(3), bX.col(i).head(3), sf(i) );
+        problem.AddResidualBlock( cost_function, NULL, T_cap_q, T_cap_t );
+
+
+        // CostFunction* cost_function = EuclideanDistanceResidueSwitchingConstraint::Create( aX.col(i).head(3), bX.col(i).head(3) );
+        // problem.AddResidualBlock( cost_function, norm, T_cap_q, T_cap_t, &s[i] );
+    }
+    ceres::LocalParameterization *quaternion_parameterization = new ceres::QuaternionParameterization;
+    problem.SetParameterization( T_cap_q, quaternion_parameterization );
+
+
+    #if 0
+    for( int i=0 ; i<aX.cols() ; i++ ) {
+        // if( refine_switch_weights == false )
+            problem.SetParameterBlockConstant( &s[i] );
+    }
+    #endif
+
+
+
+    //--- Solve
+    Solver::Options options;
+    // TODO set dense solver as this is a small problem
+    options.minimizer_progress_to_stdout = false;
+    options.linear_solver_type = ceres::DENSE_QR;
+    _PoseComputation__refine_debug( options.minimizer_progress_to_stdout = true; )
+    Solver::Summary summary;
+    _PoseComputation__refine_info( cout << TermColor::GREEN() << "\t[PoseComputation::refine]SOLVE" << TermColor::RESET() << endl; )
+    ceres::Solve(options, &problem, &summary);
+    _PoseComputation__refine_debug( std::cout << summary.FullReport() << "\n"; );
+    _PoseComputation__refine_info( std::cout << summary.BriefReport() << endl; );
+
+    //--- Retrive Solution
+    PoseManipUtils::raw_to_eigenmat( T_cap_q, T_cap_t, a_T_b );
+    _PoseComputation__refine_info(
+        cout << "Final Pose Estimate (a_T_b): " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;)
+
+
+
+    //================================================================================
+
+
+    //----------- done now gauge how good is the solution,
+    //      - number of 3d points is too less
+    //      - termination type is not CONVERGENCE
+    //      - too many s were turned off, usually
+
+
+    if( summary.termination_type != ceres::TerminationType::CONVERGENCE )
+    {
+        _PoseComputation__refine_info(
+        cout << TermColor::RED() << "didnot Converged...:(\n" << TermColor::RESET();)
+        return false;
+    }
+    else {
+        _PoseComputation__refine_info(
+        cout << TermColor::GREEN() << "converged :)\n" << TermColor::RESET();)
+        return true;
+    }
+
+
+
+    _PoseComputation__refine_info(
+    cout << TermColor::BLUE() << "computation done in ms=" << _t.toc_milli() << TermColor::RESET() << endl;
+    cout << TermColor::iGREEN() << "=== PoseComputation::refine Finished" << TermColor::RESET() << endl;
+    )
+
+
+    // delete [] quantile;
+    // delete [] s;
+    return true;
+}
 
 
 
@@ -342,7 +457,7 @@ float PoseComputation::alternatingMinimization( const MatrixXd& aX, const Matrix
     // print_info_on_switch_weights( switch_weights );
 
 
-    const double lambda = 1.5;
+    const double lambda = 1.1;
     int max_iterations = 5;
     VectorXi quantile;
     bool converged = false;

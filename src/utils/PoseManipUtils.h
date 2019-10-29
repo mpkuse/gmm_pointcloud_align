@@ -38,6 +38,7 @@ public:
     static void prettyprintPoseMatrix( const Matrix4d& M, string& return_string );
 
     static string prettyprintMatrix4d( const Matrix4d& M );
+    static string prettyprintMatrix4d( const Matrix4d& M, const string delimiter );
     static string prettyprintMatrix4d_YPR( const Matrix4d& M );
     static string prettyprintMatrix4d_t( const Matrix4d& M );
 

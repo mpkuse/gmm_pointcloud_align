@@ -206,13 +206,13 @@ bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
         #endif
 
 
-        #if 1
+        #if 0
         double baseline = p_t_base.norm();
         // cout << "baseline=" << baseline << "\n";
 
         // double f = baseline*10 ;//1.0 / ( 1.0 + abs(baseline)*5 );
         double f = square_me(base_u(0) - tracked_u[i](0)) + square_me( base_u(1) - tracked_u[i](1)); //< more weight for higher parallax
-        cout << "i=" << i << " f=" << f << endl;
+        // cout << "i=" << i << " f=" << f << endl;
         if( f*385.*385.  < 16. )
             f = 1e-5;
         else
@@ -230,9 +230,9 @@ bool Triangulation::MultiViewLinearLSTriangulation( const Vector3d& base_u,
         c++;
     }
 
-    cout << "n_good_parallax = " << n_good_parallax << endl;
-    if( n_good_parallax< 2 )
-        return false;
+    // cout << "n_good_parallax = " << n_good_parallax << endl;
+    // if( n_good_parallax< 2 )
+        // return false;
 
     // equation for base
     A.row(2*N_true) << -1.0, 0.0, base_u(0);

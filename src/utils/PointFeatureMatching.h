@@ -83,6 +83,12 @@ public:
                                 MatrixXd& u, MatrixXd& ud, int n_orb_feat=5000 ); //< n_orb_feat has to be a few thousands atleast for spatial consistency checks.
 
 
+    // This will down scale the input image, do the feature correspondences and then upscale the co-ordinates of
+    // correspondences and return these.
+    static void gms_point_feature_matches_scaled( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
+                                MatrixXd& u, MatrixXd& ud,
+                                float scale, int n_orb_feat=2000 );
+
     // u : 3xN. (x,y) or (colID,rowID)
     static void point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
                     MatrixXd&u, MatrixXd& ud,

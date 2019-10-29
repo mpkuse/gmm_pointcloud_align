@@ -57,6 +57,9 @@ public:
     Matrix4d right_T_left;
     std::shared_ptr<StereoGeometry> stereogeom;
 
+    bool is_imuTcam_available = false;
+    Matrix4d imu_T_cam;
+
 
     bool load_left_camera()
     {
@@ -136,9 +139,32 @@ public:
           exit(1);
         }
         cout << "JSON Loaded successfully..." << endl;
+
+
         json STATE;
         json_stream >> STATE;
         json_stream.close();
+
+
+
+        // if json contains imu_T_cam
+        try{
+            json m_vars = STATE.at("MiscVariables");
+            json imu_t_cam_json = m_vars.at("imu_T_cam");
+            cout << imu_t_cam_json << endl;
+            // Matrix4d imu_T_cam;
+            RawFileIO::read_eigen_matrix4d_fromjson( imu_t_cam_json, imu_T_cam );
+            cout << "(json) imu_T_cam:\n";
+            cout << imu_T_cam << endl;
+            is_imuTcam_available = true;
+        }
+        catch (json::type_error& e)
+        {
+            is_imuTcam_available = false;
+            cout << e.what() << endl;
+        }
+
+
         return STATE;
     }
 

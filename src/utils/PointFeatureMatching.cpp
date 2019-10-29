@@ -192,7 +192,29 @@ void StaticPointFeatureMatching::gms_point_feature_matches( const cv::Mat& imlef
 
 }
 
+void StaticPointFeatureMatching::gms_point_feature_matches_scaled( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
+                            MatrixXd& u, MatrixXd& ud,
+                            float scale, int n_orb_feat )
+{
+    assert( imleft_undistorted.data && imright_undistorted.data );
+    assert( scale > 0.1 && scale < 0.99 );
 
+    // scale images
+    cv::Mat imleft_undistorted_scaled, imright_undistorted_scaled;
+    cv::resize(imleft_undistorted, imleft_undistorted_scaled, cv::Size(), scale, scale);
+    cv::resize(imright_undistorted, imright_undistorted_scaled, cv::Size(), scale, scale);
+
+    // core matcher
+    gms_point_feature_matches( imleft_undistorted_scaled, imright_undistorted_scaled, u, ud, n_orb_feat );
+
+    // un-scale the co-ordinates
+    if( u.cols() > 0 && ud.cols() > 0 ) {
+        // this will cause seg-fault if no point feature matches were found
+        u *= (1.0/scale);
+        ud *= (1.0/scale);
+    }
+
+}
 
 
 //-----------------------------------------------
