@@ -252,6 +252,7 @@ add_executable( local_ptcloud
         ${KaixuanUtils}
         src/PoseComputation.cpp
         src/Triangulation.cpp
+        src/LocalBundle.cpp
         )
 
     add_executable( icl_nuim_tool

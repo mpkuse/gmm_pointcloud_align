@@ -41,6 +41,7 @@ using json = nlohmann::json;
 
 #include "PoseComputation.h"
 #include "Triangulation.h"
+#include "LocalBundle.h"
 
 //
 #include "utils/RosMarkerUtils.h"
@@ -1317,6 +1318,7 @@ int main( int argc, char ** argv )
 
         if( ch == '3' ) //monocular
         {
+
             cout << TermColor::BLUE() << "3 pressed PROCESS" << TermColor::RESET() << endl;
             assert( all_i.size() >= 2 );
             cout << "series#0: " << *(all_i[0].begin()) << " --> " << *(all_i[0].rbegin()) << endl;
@@ -1329,17 +1331,51 @@ int main( int argc, char ** argv )
             assert( status_posea0 && status_poseb0 );
 
 
+            // odom for the full seq
+            cout << "\nGet Odoms for seq-a:\n";
+            vector< Matrix4d > odom__a0_T_a;
+            vector< int > odom_a_idx;
+            for( auto it=all_i[0].begin() ; it!=all_i[0].end() ; it++ )
+            {
+                cout << *it << "\t";
+                Matrix4d w_T_a;
+                bool status__ = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][*it], w_T_a );
+                assert( status__ );
+
+                Matrix4d a0_T_a = w_T_a0.inverse() * w_T_a;
+                odom__a0_T_a.push_back( a0_T_a );
+                odom_a_idx.push_back( *it );
+            }
+            cout << endl;
+            cout << "Get Odoms for seq-b:\n";
+            vector< Matrix4d > odom__b0_T_b;
+            vector< int > odom_b_idx;
+            for( auto it=all_i[1].begin() ; it!=all_i[1].end() ; it++ )
+            {
+                cout << *it << "\t";
+                Matrix4d w_T_b;
+                bool status__ = xloader.retrive_pose_from_json_datanode( STATE["DataNodes"][*it], w_T_b );
+                assert( status__ );
+
+                Matrix4d b0_T_b = w_T_b0.inverse() * w_T_b;
+                odom__b0_T_b.push_back( b0_T_b );
+                odom_b_idx.push_back( *it );
+            }
+            cout << endl;
+
+
 
             vector<Matrix4d> all_a0_T_a, all_b0_T_b;
-            vector<MatrixXd> all_normed_uv_a, all_normed_uv_b;
+            vector<MatrixXd> all_normed_uv_a, all_normed_uv_b; //each matrix will be 3xN (expressed as homogeneous cords)
             vector<VectorXd> all_d_a, all_d_b, all_sf;
+            vector< std::pair<int,int> > all_pair_idx; // the idx of each pairs
 
-            vector<MatrixXd> all_a0X, all_b0X;
+            vector<MatrixXd> all_a0X, all_b0X; //each pt will be 4xN
             vector<vector<bool>> all_valids;
 
             // random pairs, image correspondences only
             std::map< std::pair<int,int>, bool > repeatl;
-            for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
+            for( int rand_itr=0 ; rand_itr<5 ; rand_itr++ )
             {
                 cout << "\n-----------------------\n";
                 cout << "--- rand_itr=" << rand_itr ;
@@ -1879,6 +1915,7 @@ int main( int argc, char ** argv )
 
                 all_a0_T_a.push_back( a0_T_a );
                 all_b0_T_b.push_back( b0_T_b );
+                all_pair_idx.push_back( std::make_pair( idx_a, idx_b ) );
 
                 //--2.
                 all_normed_uv_a.push_back( normed_uv_a );
@@ -1982,6 +2019,21 @@ int main( int argc, char ** argv )
             cout << TermColor::BLUE() << t_alternatingminimization.toc() << TermColor::RESET() << endl;
 
 
+            // Local Bundle
+            LocalBundle bundle;
+            bundle.inputOdometry( 0, odom__a0_T_a );
+            bundle.inputOdometry( 1, odom__b0_T_b );
+            bundle.inputInitialGuess( 0, 1, a_T_b );
+            bundle.inputFeatureMatches( 0, 1, all_normed_uv_a, all_normed_uv_b );
+            bundle.inputFeatureMatchesDepths( 0, 1, all_d_a, all_d_b, all_sf );
+            bundle.inputFeatureMatchesPoses( 0, 1, all_a0_T_a, all_b0_T_b );
+            bundle.inputFeatureMatchesImIdx( 0, 1, all_pair_idx ); //< optional , debug
+            bundle.inputOdometryImIdx( 0, odom_a_idx );
+            bundle.inputOdometryImIdx( 1, odom_b_idx );
+            bundle.print_inputs_info();
+            bundle.toJSON();
+
+
             //------- Refine Y, tx,ty,tz. get pitch and roll from odometry
             cout << TermColor::RED() << "---\n" << TermColor::RESET();
             cout << "computed a_T_b   = " << PoseManipUtils::prettyprintMatrix4d( a_T_b, " " ) << endl;
@@ -1994,6 +2046,7 @@ int main( int argc, char ** argv )
             Matrix4d computed__ad_T_bd = xloader.imu_T_cam * a_T_b * xloader.imu_T_cam.inverse();
             cout << "computed__ad_T_bd = " << PoseManipUtils::prettyprintMatrix4d( computed__ad_T_bd, " " ) << endl;
 
+            #if 0
             // {
                 // get pitch and roll from `odometry__ad_T_bd`
                 double odom_ad_ypr_bd[5], odom_ad_xyz_bd[5];
@@ -2035,6 +2088,7 @@ int main( int argc, char ** argv )
                 // cout << "a_T_b := hybrid_a_T_b\n";
                 // a_T_b = hybrid_a_T_b;
             // }
+            #endif
 
             cout << TermColor::RED() << "---\n" << TermColor::RESET();
 
