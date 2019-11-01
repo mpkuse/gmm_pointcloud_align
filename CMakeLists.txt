@@ -321,6 +321,11 @@ add_executable( test_monocular_depth
     src/utils/PointFeatureMatching.cpp
     )
 
+add_executable( test_localbundle
+    src/test_localbundle.cpp
+    ${KuseUtils}
+    src/LocalBundle.cpp
+    )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -434,6 +439,13 @@ target_link_libraries( test_triangulation
     ${catkin_LIBRARIES}
     ${OpenCV_LIBS}
   )
+
+
+  target_link_libraries( test_localbundle
+     ${catkin_LIBRARIES}
+     ${OpenCV_LIBS}
+   )
+
 
 #############
 ## Install ##

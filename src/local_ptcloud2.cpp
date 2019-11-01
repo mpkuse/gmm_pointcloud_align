@@ -2031,7 +2031,7 @@ int main( int argc, char ** argv )
             bundle.inputOdometryImIdx( 0, odom_a_idx );
             bundle.inputOdometryImIdx( 1, odom_b_idx );
             bundle.print_inputs_info();
-            bundle.toJSON();
+            bundle.toJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/");
 
 
             //------- Refine Y, tx,ty,tz. get pitch and roll from odometry

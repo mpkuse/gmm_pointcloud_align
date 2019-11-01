@@ -226,9 +226,9 @@ json LocalBundle::matches_SeqPair_toJSON( int seq_a, int seq_b ) const
 
 }
 
-void LocalBundle::toJSON() const
+void LocalBundle::toJSON(const string BASE) const
 {
-    const string BASE = "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/";
+    // const string BASE = "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/";
 
     // Save Sequences
     for( auto it = x0_T_c.begin() ; it != x0_T_c.end() ; it++ )
@@ -255,6 +255,150 @@ void LocalBundle::toJSON() const
     }
 }
 
+//---
+
+bool LocalBundle::odomSeqJ_fromJSON( const string BASE, int j)
+{
+    // const string BASE = "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/";
+    // int j = 0;
+
+    string fname = BASE + "/odomSeq" + std::to_string( j ) + ".json";
+    cout << "Load: " << fname << endl;
+
+    // read json
+    std::ifstream json_file(fname);
+    json obj;
+    json_file >> obj;
+
+
+    int seqID = obj["seqID"];
+    cout << "seqID = " << seqID << endl;
+    assert( seqID == j );
+
+    int N = (int)obj["data"].size();
+    cout << "There are " << N << " seq items\n";
+    this->x0_T_c[seqID] = vector<Matrix4d>();
+    this->seq_x_idx[seqID] = vector<int>();
+    for( int i=0 ; i<N ; i++ )
+    {
+        json tmp_pose = obj["data"][i]["c0_T_c"];
+        Matrix4d c0_T_c;
+        RawFileIO::read_eigen_matrix4d_fromjson( tmp_pose, c0_T_c );
+
+        int idx = obj["data"][i]["idx"];
+        cout << idx << "\t";
+        cout << PoseManipUtils::prettyprintMatrix4d( c0_T_c ) << endl;
+        cout << c0_T_c << endl;
+
+        // set this data in `this`
+        this->x0_T_c[seqID].push_back( c0_T_c );
+        this->seq_x_idx[seqID].push_back( idx );
+
+    }
+
+    return true;
+}
+
+bool LocalBundle::matches_SeqPair_fromJSON( const string BASE, int seqa, int seqb )
+{
+    // const string BASE = "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/";
+    // int seqa = 0;
+    // int seqb = 1;
+
+    string fname = BASE + "/seqPair_" + std::to_string( seqa ) + "_" + std::to_string( seqb ) + ".json";
+    cout << "Load: " << fname << endl;
+
+    // read json
+    std::ifstream json_file(fname);
+    json obj;
+    json_file >> obj;
+
+    int json_seqa = obj["seq_a"];
+    int json_seqb = obj["seq_b"];
+    assert( seqa == json_seqa && seqb == json_seqb );
+    auto pyp = std::make_pair( seqa, seqb );
+    cout << "json_seqa=" << json_seqa<< "\tjson_seqb=" << json_seqb << endl;
+
+
+    json tmp = obj["initial_guess____a0_T_b0"];
+    a0_T_b0[pyp] = Matrix4d::Identity();
+    RawFileIO::read_eigen_matrix4d_fromjson( tmp, a0_T_b0[pyp] );
+    cout << "a0_T_b0[(" << pyp.first << "," << pyp.second  << ")]=" << a0_T_b0[pyp] << endl;
+
+
+    //
+    int N = (int)obj["data"].size();
+    cout << "There are " << N << "data items\n";
+    normed_uv_a[pyp] =  vector<MatrixXd> ();
+    d_a[pyp] = vector<VectorXd> ();
+    a0_T_a[pyp] = vector<Matrix4d>();
+
+    normed_uv_b[pyp] =  vector<MatrixXd> ();
+    d_b[pyp] = vector<VectorXd> ();
+    b0_T_b[pyp] = vector<Matrix4d>();
+
+    all_pair_idx[pyp] =  vector< std::pair<int,int> >();
+
+    for( int i=0 ; i<N ; i++ )
+    {
+        json tmp_data = obj["data"][i];
+
+        Matrix4d tmp_a0_T_a;
+        RawFileIO::read_eigen_matrix4d_fromjson( tmp_data["a0_T_a"], tmp_a0_T_a );
+
+        Matrix4d tmp_b0_T_b;
+        RawFileIO::read_eigen_matrix4d_fromjson( tmp_data["b0_T_b"], tmp_b0_T_b );
+
+        int idx_a = tmp_data["idx_a"];
+        int idx_b = tmp_data["idx_b"];
+
+
+        VectorXd tmp_d_a;
+        RawFileIO::read_eigen_vector_fromjson( tmp_data["d_a"], tmp_d_a );
+
+        VectorXd tmp_d_b;
+        RawFileIO::read_eigen_vector_fromjson( tmp_data["d_b"], tmp_d_b );
+
+
+        MatrixXd tmp_normed_uv_a;
+        RawFileIO::read_eigen_matrix_fromjson( tmp_data["normed_uv_a"], tmp_normed_uv_a );
+
+        MatrixXd tmp_normed_uv_b;
+        RawFileIO::read_eigen_matrix_fromjson( tmp_data["normed_uv_b"], tmp_normed_uv_b );
+
+
+        cout << "i=" << i << "\t";
+        cout << idx_a << "<--->" << idx_b << "\t";
+        cout << "d_a, d_b = " << tmp_d_a.size() << ", " << tmp_d_b.size() << "\t";
+        cout << "uv_a=" << tmp_normed_uv_a.rows() << "x" << tmp_normed_uv_a.cols() << "\t";
+        cout << "uv_b=" << tmp_normed_uv_a.rows() << "x" << tmp_normed_uv_a.cols() << "\t";
+        cout << endl;
+
+
+        // set this data in `this`
+        all_pair_idx[pyp].push_back( make_pair( idx_a, idx_b) );
+
+        normed_uv_a[pyp].push_back( tmp_normed_uv_a );
+        d_a[pyp].push_back( tmp_d_a );
+        a0_T_a[pyp].push_back( tmp_a0_T_a );
+
+        normed_uv_b[pyp].push_back( tmp_normed_uv_b );
+        d_b[pyp].push_back( tmp_d_b );
+        b0_T_b[pyp].push_back( tmp_b0_T_b );
+
+
+    }
+
+}
+
+void LocalBundle::fromJSON( const string BASE )
+{
+    // TODO ideally should scan this directory, but itz ok.
+    odomSeqJ_fromJSON(BASE, 0);
+    odomSeqJ_fromJSON(BASE, 1);
+    matches_SeqPair_fromJSON(BASE, 0, 1);
+}
+//---
 
 void LocalBundle::print_inputs_info() const
 {
@@ -290,11 +434,29 @@ void LocalBundle::print_inputs_info() const
     cout << "There are " << all_pair_idx.size() << " seq-pairs\n";
     for( auto it = all_pair_idx.begin() ; it != all_pair_idx.end() ; it++ )
     {
-        auto y = it->second;
         cout << "seq-pair#" << std::distance( it , all_pair_idx.begin() ) << " between seq#" << it->first.first << " and seq#" << it->first.second << endl; ;
+
+        #if 0
+        auto y = it->second;
         for( auto itz=y.begin() ; itz!=y.end() ; itz++ )
             cout << itz->first << "<--->" << itz->second << "\n";
         cout << endl;
+        #endif
+
+        auto y = it->second;
+        auto pyp = it->first;
+        for( int k=0 ; k<y.size() ; k++ ) {
+            cout << "\t#" << k << "\t";
+            cout << all_pair_idx.at(pyp).at( k ).first << "<--->" << all_pair_idx.at(pyp).at( k ).first<< "\t";
+            cout << normed_uv_a.at(pyp).at( k ).rows() << "x" << normed_uv_a.at(pyp).at( k ).cols() << "\t";
+            cout << normed_uv_b.at(pyp).at( k ).rows() << "x" << normed_uv_b.at(pyp).at( k ).cols() << "\t";
+            cout << d_a.at(pyp).at(k).size() << "\t" <<  d_b.at(pyp).at(k).size() << "\t";
+            a0_T_a.at(pyp).at(k);
+            b0_T_b.at(pyp).at(k);
+
+            cout << endl;
+        }
+
 
     }
 
@@ -306,3 +468,12 @@ void LocalBundle::print_inputs_info() const
 //----------------------------------------------------------------------------//
 //      END print, json IO
 //----------------------------------------------------------------------------//
+
+
+
+
+
+void LocalBundle::solve()
+{
+
+}

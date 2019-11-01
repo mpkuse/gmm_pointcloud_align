@@ -402,6 +402,11 @@ bool RawFileIO::read_eigen_matrix_fromjson( const json str, MatrixXd&  output )
     if( nrows != all_rows.size() )
     {
         cout << "[RawFileIO::read_eigen_matrix_fromjson] ERROR, requested " << nrows << " but actually are " << all_rows.size() << endl;
+        #if 1
+        cout << "contents:\n";
+        for( int h=0 ; h<all_rows.size() ; h++ )
+            cout << "row#" << h << "\t" << all_rows[h] << endl;
+        #endif
         return false;
     }
     for( int r=0 ; r<all_rows.size() ; r++ )

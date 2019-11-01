@@ -74,11 +74,13 @@ public:
     // save state to json
     json odomSeqJ_toJSON( int j ) const ;
     json matches_SeqPair_toJSON( int seq_a, int seq_b ) const ;
-    void toJSON() const;
+    void toJSON( const string BASE) const;
 
 
     // read state from json
-    // bool fromJSON( json b );
+    bool odomSeqJ_fromJSON(const string BASE, int j);
+    bool matches_SeqPair_fromJSON(const string BASE, int seqa, int seqb);
+    void fromJSON( const string BASE ) ;
 
 
     //------------------//

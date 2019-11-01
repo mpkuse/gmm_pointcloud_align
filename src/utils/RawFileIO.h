@@ -92,7 +92,7 @@ public:
     template <typename Derived>
     static json write_eigen_matrix_tojson( const MatrixBase<Derived>& a )
     {
-        IOFormat CSVFormat(StreamPrecision, DontAlignCols, ", ", ",\t\n");
+        IOFormat CSVFormat(StreamPrecision, DontAlignCols, ", ", "\n");
 
         json pose_ifo;
         pose_ifo["rows"] = a.rows();
