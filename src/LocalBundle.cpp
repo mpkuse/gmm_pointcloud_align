@@ -484,14 +484,15 @@ void LocalBundle::allocate_and_init_optimization_vars()
     cout << TermColor::iGREEN() << "allocate_and_init_optimization_vars" << TermColor::RESET() << endl;
     for( auto it = x0_T_c.begin() ; it != x0_T_c.end() ; it++ ) // loop over every series
     {
+        int seqID = it->first;
         int n_frame_in_this_series = (it->second).size();
-        cout << "n_frame_in_this_series(" << it->first << ") = " << n_frame_in_this_series << endl;
+        cout << "n_frame_in_this_series(seqID=" << seqID << ") = " << n_frame_in_this_series << endl;
 
         double * S_qxqyqzqw = new double[n_frame_in_this_series*4];
         double * S_xyz = new double[n_frame_in_this_series*3];
 
-        opt_var_qxqyqzqw[ it->first ] = S_qxqyqzqw;
-        opt_var_xyz[it->first] = S_xyz;
+        opt_var_qxqyqzqw[ seqID ] = S_qxqyqzqw;
+        opt_var_xyz[ seqID ] = S_xyz;
 
 
         // set values from it->second
@@ -499,18 +500,31 @@ void LocalBundle::allocate_and_init_optimization_vars()
         for( int i=0 ; i<pose_list.size() ; i++ )
         {
             Matrix4d use;
-            if( it->first == 0 )
+            if( seqID == 0 )
                 use = pose_list[i];
-            else if( it->first == 1 )
+            else if(seqID == 1 )
             {
+                // use = pose_list[i];
+                assert( a0_T_b0.count(std::make_pair(0,1)) > 0 );
                 use = a0_T_b0.at( std::make_pair(0,1) ) * pose_list[i];
             } else {
                 cout << "NOT IMPLEMENTED....\n";
                 exit(1);
             }
 
-            cout << "\t#" << i << " : " << PoseManipUtils::prettyprintMatrix4d( pose_list[i] ) << "\t" << PoseManipUtils::prettyprintMatrix4d(use) << endl;
-            PoseManipUtils::eigenmat_to_raw( use, &S_qxqyqzqw[4*i], &S_xyz[3*i] );
+            PoseManipUtils::eigenmat_to_raw_xyzw( use, &S_qxqyqzqw[4*i], &S_xyz[3*i] );
+
+            #if 0
+            // verification
+            cout << "\t#" << i << " ";
+            cout << "pose_list[i] : " << PoseManipUtils::prettyprintMatrix4d( pose_list[i] ) << "\t";
+            cout << "use : " << PoseManipUtils::prettyprintMatrix4d(use) << endl;
+
+            Matrix4d tmp_w_T_i;
+            PoseManipUtils::raw_xyzw_to_eigenmat( get_raw_ptr_to_opt_variable_q(seqID, i), get_raw_ptr_to_opt_variable_t(seqID, i), tmp_w_T_i );
+            cout << "\t\ttmp_w_T_i: " << PoseManipUtils::prettyprintMatrix4d( tmp_w_T_i ) << endl;
+            #endif
+
         }
 
     }
@@ -549,7 +563,7 @@ void LocalBundle::add_odometry_residues( ceres::Problem& problem )
                 if( u-f < 0 )
                     continue;
 
-                // cout << "add " << u << " ===== " << u-f << "\t";
+                cout << "add " << u << " ===== " << u-f << "\t";
 
                 Matrix4d u_M_umf = pose_list[u].inverse() * pose_list[u-f];
                 double odom_edge_weight = 1.0;
@@ -558,8 +572,21 @@ void LocalBundle::add_odometry_residues( ceres::Problem& problem )
                         get_raw_ptr_to_opt_variable_q(seqID, u), get_raw_ptr_to_opt_variable_t(seqID, u),
                         get_raw_ptr_to_opt_variable_q(seqID, u-f), get_raw_ptr_to_opt_variable_t(seqID, u-f) );
 
+
+                #if 0
+                // verification
+                cout << endl;
+                cout << "u_M_umf:" << PoseManipUtils::prettyprintMatrix4d( u_M_umf ) << "\n";
+                Matrix4d tmp_w_T_u, tmp_w_T_umf;
+                PoseManipUtils::raw_xyzw_to_eigenmat( get_raw_ptr_to_opt_variable_q(seqID, u), get_raw_ptr_to_opt_variable_t(seqID, u), tmp_w_T_u );
+                PoseManipUtils::raw_xyzw_to_eigenmat( get_raw_ptr_to_opt_variable_q(seqID, u-f), get_raw_ptr_to_opt_variable_t(seqID, u-f), tmp_w_T_umf );
+                Matrix4d tmp_u_T_umf = tmp_w_T_u.inverse() * tmp_w_T_umf;
+                cout << "tmp_u_T_umf:" << PoseManipUtils::prettyprintMatrix4d( tmp_u_T_umf ) << "\t";
+                cout << endl;
+                #endif
+
             }
-            // cout << endl;
+            cout << endl;
         }
 
     }
@@ -567,7 +594,69 @@ void LocalBundle::add_odometry_residues( ceres::Problem& problem )
 
 }
 
+void LocalBundle::add_correspondence_residues( ceres::Problem& problem )
+{
+    cout << TermColor::iGREEN() << "correspondence residues" << TermColor::RESET() << endl;
+    auto p = std::make_pair( 0, 1 );
+    cout << "p = (" << p.first << "," << p.second << ")\n";
+    cout << "normed_uv_a[p].size()=" << normed_uv_a[p].size() << endl;
+    auto robust_loss = new CauchyLoss(.01) ;
 
+    for( int i=0 ; i<normed_uv_a[p].size() ; i++ )
+    {
+        cout << "---\n";
+        cout << "\t" << "normed_uv_a[p][i].cols()=" << normed_uv_a[p][i].cols() << endl;
+        cout << "\t" << "d_a[p][i].cols()=" << d_a[p][i].rows() << endl;
+        cout << "\t" << all_pair_idx[p][i].first << " <> " << all_pair_idx[p][i].second << endl; //frame# of the correspondence
+
+        auto f_it = std::find( seq_x_idx.at(0).begin(), seq_x_idx.at(0).end(), all_pair_idx[p][i].first );
+        auto h_it = std::find( seq_x_idx.at(1).begin(), seq_x_idx.at(1).end(), all_pair_idx[p][i].second );
+
+        if( f_it == seq_x_idx.at(0).end() || h_it == seq_x_idx.at(1).end() ) {
+            cout << "\tNA\n";
+            assert( false );
+        }
+        else {
+            cout << "\t";
+            cout << std::distance( seq_x_idx.at(0).begin(), f_it );
+            cout << " <> ";
+            cout << std::distance( seq_x_idx.at(1).begin(), h_it ) << endl;
+        }
+
+        int ff = std::distance( seq_x_idx.at(0).begin(), f_it );
+        int hh = std::distance( seq_x_idx.at(1).begin(), h_it );
+        cout << "\tframe_a#" << ff << " <> " << "frame_b#" << hh << endl;
+        double * tmp_ff_q = get_raw_ptr_to_opt_variable_q(0, ff );
+        double * tmp_ff_t = get_raw_ptr_to_opt_variable_t(0, ff );
+        double * tmp_hh_q = get_raw_ptr_to_opt_variable_q(1, hh);
+        double * tmp_hh_t = get_raw_ptr_to_opt_variable_t(1, hh );
+
+
+
+        for( int j=0 ; j<normed_uv_a[p][i].cols() ; j++ )
+        {
+            Vector3d a_3d, b_3d;
+            Vector2d a_2d, b_2d;
+            double ___d_a = d_a[p][i](j);
+            double ___d_b = d_b[p][i](j);
+            a_3d << ___d_a * normed_uv_a[p][i].col(j).topRows(3);
+            b_3d << ___d_b * normed_uv_b[p][i].col(j).topRows(3);
+            b_2d << normed_uv_b[p][i].col(j).topRows(2);
+            b_2d << normed_uv_b[p][i].col(j).topRows(2);
+
+            // 3d points from a, 2d points from b
+            ceres::CostFunction * cost_function_1 = ProjectionError::Create( a_3d, b_2d  );
+            problem.AddResidualBlock( cost_function_1, robust_loss, tmp_ff_q, tmp_ff_t, tmp_hh_q, tmp_hh_t );
+
+
+            // TODO 3d point from b, 2d point from a
+            ceres::CostFunction * cost_function_2 = ProjectionError::Create( b_3d, a_2d  );
+            problem.AddResidualBlock( cost_function_1, robust_loss, tmp_hh_q, tmp_hh_t, tmp_ff_q, tmp_ff_t );
+
+        }
+    }
+    cout << TermColor::iGREEN() << "END correspondence residues" << TermColor::RESET() << endl;
+}
 
 double * LocalBundle::get_raw_ptr_to_opt_variable_q(int seqID, int u ) const
 {
@@ -617,65 +706,12 @@ void LocalBundle::solve()
     // Setup residues - odometry
     add_odometry_residues( problem );
 
-    #if 0
+    #if 1
     // set residues - correspondence
-    cout << TermColor::iGREEN() << "correspondence residues" << TermColor::RESET() << endl;
-    auto p = std::make_pair( 0, 1 );
-    cout << "p = (" << p.first << "," << p.second << ")\n";
-    cout << "normed_uv_a[p].size()=" << normed_uv_a[p].size() << endl;
-    for( int i=0 ; i<normed_uv_a[p].size() ; i++ )
-    {
-        cout << "---\n";
-        cout << "\t" << "normed_uv_a[p][i].cols()=" << normed_uv_a[p][i].cols() << endl;
-        cout << "\t" << "d_a[p][i].cols()=" << d_a[p][i].rows() << endl;
-        cout << "\t" << all_pair_idx[p][i].first << " <> " << all_pair_idx[p][i].second << endl; //frame# of the correspondence
 
-        auto f_it = std::find( seq_x_idx.at(0).begin(), seq_x_idx.at(0).end(), all_pair_idx[p][i].first );
-        auto h_it = std::find( seq_x_idx.at(1).begin(), seq_x_idx.at(1).end(), all_pair_idx[p][i].second );
-
-        if( f_it == seq_x_idx.at(0).end() || h_it == seq_x_idx.at(1).end() ) {
-            cout << "\tNA\n";
-            assert( false );
-        }
-        else {
-            cout << "\t";
-            cout << std::distance( seq_x_idx.at(0).begin(), f_it );
-            cout << " <> ";
-            cout << std::distance( seq_x_idx.at(1).begin(), h_it ) << endl;
-        }
-
-        int ff = std::distance( seq_x_idx.at(0).begin(), f_it );
-        int hh = std::distance( seq_x_idx.at(1).begin(), h_it );
-        cout << "\tframe_a#" << ff << " <> " << "frame_b#" << hh << endl;
-        double * tmp_ff_q = get_raw_ptr_to_opt_variable_q(0, ff );
-        double * tmp_ff_t = get_raw_ptr_to_opt_variable_t(0, ff );
-        double * tmp_hh_q = get_raw_ptr_to_opt_variable_q(1, hh);
-        double * tmp_hh_t = get_raw_ptr_to_opt_variable_t(1, hh );
-
-
-
-        for( int j=0 ; j<normed_uv_a[p][i].cols() ; j++ )
-        {
-            Vector3d a_3d, b_3d;
-            Vector2d a_2d, b_2d;
-            double ___d_a = d_a[p][i](j);
-            double ___d_b = d_b[p][i](j);
-            a_3d << ___d_a * normed_uv_a[p][i].col(j).topRows(3);
-            b_3d << ___d_b * normed_uv_b[p][i].col(j).topRows(3);
-            b_2d << normed_uv_b[p][i].col(j).topRows(2);
-            b_2d << normed_uv_b[p][i].col(j).topRows(2);
-
-            // 3d points from a, 2d points from b
-            ceres::CostFunction * cost_function = ProjectionError::Create( a_3d, b_2d  );
-            auto robust_loss = new CauchyLoss(.01) ;
-            problem.AddResidualBlock( cost_function, robust_loss, tmp_ff_q, tmp_ff_t, tmp_hh_q, tmp_hh_t );
-
-
-            // TODO 3d point from b, 2d point from a
-
-        }
-    }
-    cout << TermColor::iGREEN() << "END correspondence residues" << TermColor::RESET() << endl;
+    // TODO: this is slow because I am adding each individual correspondence. Ideally I should add all the correspondence for a frame-pair together.
+    //       however, this is my 1st attempt and made for correctness
+    add_correspondence_residues( problem );
     #endif
 
 

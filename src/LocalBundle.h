@@ -101,6 +101,7 @@ private:
 
     void set_params_constant_for_seq( int seqID, ceres::Problem& problem );
     void add_odometry_residues( ceres::Problem& problem );
+    void add_correspondence_residues( ceres::Problem& problem );
 
 
     //--------------------//
