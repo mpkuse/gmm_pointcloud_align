@@ -40,4 +40,6 @@ int main()
     // bundle.matches_SeqPair_fromJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/", 0, 1);
     bundle.fromJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/" );
     bundle.print_inputs_info();
+
+    bundle.solve();
 }

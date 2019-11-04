@@ -286,9 +286,11 @@ bool LocalBundle::odomSeqJ_fromJSON( const string BASE, int j)
         RawFileIO::read_eigen_matrix4d_fromjson( tmp_pose, c0_T_c );
 
         int idx = obj["data"][i]["idx"];
+        #if 0
         cout << idx << "\t";
         cout << PoseManipUtils::prettyprintMatrix4d( c0_T_c ) << endl;
         cout << c0_T_c << endl;
+        #endif
 
         // set this data in `this`
         this->x0_T_c[seqID].push_back( c0_T_c );
@@ -409,8 +411,8 @@ void LocalBundle::print_inputs_info() const
     int i=0;
     for( auto it=x0_T_c.begin() ; it!=x0_T_c.end() ; it++ )
     {
-        cout << "Seq#" << it->first  << ":\n";
-        cout << char_list[i] << 0 << "  , " << char_list[i] << 1 << " ... " << char_list[i] << it->second.size() << endl;
+        cout << "Seq#" << it->first  << ": (n_items=" << it->second.size() << ")\n";
+        cout << char_list[i] << 0 << "  , " << char_list[i] << 1 << " ... " << char_list[i] << it->second.size()-1 << endl;
         cout << *( seq_x_idx.at( it->first ).begin() ) << "," << *( seq_x_idx.at( it->first ).begin()+1 ) << " ... " << *( seq_x_idx.at( it->first ).rbegin() ) << endl;
         cout << endl;
         i++;
@@ -469,11 +471,240 @@ void LocalBundle::print_inputs_info() const
 //      END print, json IO
 //----------------------------------------------------------------------------//
 
+void LocalBundle::deallocate_optimization_vars()
+{
+    for( auto it = opt_var_xyz.begin() ; it!=opt_var_xyz.end() ; it++ ) {
+        delete [] opt_var_xyz[ it->first ];
+        delete [] opt_var_qxqyqzqw[ it->first ];
+    }
+}
+
+void LocalBundle::allocate_and_init_optimization_vars()
+{
+    cout << TermColor::iGREEN() << "allocate_and_init_optimization_vars" << TermColor::RESET() << endl;
+    for( auto it = x0_T_c.begin() ; it != x0_T_c.end() ; it++ ) // loop over every series
+    {
+        int n_frame_in_this_series = (it->second).size();
+        cout << "n_frame_in_this_series(" << it->first << ") = " << n_frame_in_this_series << endl;
+
+        double * S_qxqyqzqw = new double[n_frame_in_this_series*4];
+        double * S_xyz = new double[n_frame_in_this_series*3];
+
+        opt_var_qxqyqzqw[ it->first ] = S_qxqyqzqw;
+        opt_var_xyz[it->first] = S_xyz;
 
 
+        // set values from it->second
+        auto pose_list = it->second;
+        for( int i=0 ; i<pose_list.size() ; i++ )
+        {
+            Matrix4d use;
+            if( it->first == 0 )
+                use = pose_list[i];
+            else if( it->first == 1 )
+            {
+                use = a0_T_b0.at( std::make_pair(0,1) ) * pose_list[i];
+            } else {
+                cout << "NOT IMPLEMENTED....\n";
+                exit(1);
+            }
+
+            cout << "\t#" << i << " : " << PoseManipUtils::prettyprintMatrix4d( pose_list[i] ) << "\t" << PoseManipUtils::prettyprintMatrix4d(use) << endl;
+            PoseManipUtils::eigenmat_to_raw( use, &S_qxqyqzqw[4*i], &S_xyz[3*i] );
+        }
+
+    }
+    cout << TermColor::iGREEN() << "END allocate_and_init_optimization_vars" << TermColor::RESET() << endl;
+}
+
+
+void LocalBundle::set_params_constant_for_seq( int seqID, ceres::Problem& problem )
+{
+    assert( x0_T_c.count(seqID) > 0 );
+    cout << TermColor::YELLOW() << "Set nodes with seqID=" << seqID << " as constant. There are " << x0_T_c.at( seqID ).size() << " such nodes\n" << TermColor::RESET();
+
+    for( int i=0 ; i<x0_T_c.at( seqID ).size() ; i++ )
+    {
+        problem.SetParameterBlockConstant( get_raw_ptr_to_opt_variable_q(seqID, i)   );
+        problem.SetParameterBlockConstant( get_raw_ptr_to_opt_variable_t(seqID, i)   );
+    }
+}
+
+
+void LocalBundle::add_odometry_residues( ceres::Problem& problem )
+{
+    cout << TermColor::iGREEN() << "odometry residues" << TermColor::RESET() << endl;
+    for( auto it = x0_T_c.begin() ; it != x0_T_c.end() ; it++ ) // loop over every series
+    {
+        int seqID = it->first;
+        auto pose_list = it->second;
+        int n_frame_in_this_series = pose_list.size();
+        cout << "\nn_frame_in_this_series( this=" << it->first << ") = " << n_frame_in_this_series << endl;
+
+        // add u<-->u-1, add u<-->u-2, add u<-->u-3, add u<-->u-4
+        for( int u=0 ; u<pose_list.size() ; u++ )
+        {
+            for( int f=1 ; f<=4 ; f++ )
+            {
+                if( u-f < 0 )
+                    continue;
+
+                // cout << "add " << u << " ===== " << u-f << "\t";
+
+                Matrix4d u_M_umf = pose_list[u].inverse() * pose_list[u-f];
+                double odom_edge_weight = 1.0;
+                ceres::CostFunction * cost_function = SixDOFError::Create( u_M_umf, odom_edge_weight  );
+                problem.AddResidualBlock( cost_function, NULL,
+                        get_raw_ptr_to_opt_variable_q(seqID, u), get_raw_ptr_to_opt_variable_t(seqID, u),
+                        get_raw_ptr_to_opt_variable_q(seqID, u-f), get_raw_ptr_to_opt_variable_t(seqID, u-f) );
+
+            }
+            // cout << endl;
+        }
+
+    }
+    cout << TermColor::iGREEN() << "END odometry residues" << TermColor::RESET() << endl;
+
+}
+
+
+
+double * LocalBundle::get_raw_ptr_to_opt_variable_q(int seqID, int u ) const
+{
+    assert( opt_var_qxqyqzqw.count(seqID) > 0 );
+    assert( u>=0 && u<x0_T_c.at(seqID).size() );
+
+    return &( opt_var_qxqyqzqw.at( seqID )[ 4*u ] );
+}
+
+
+double * LocalBundle::get_raw_ptr_to_opt_variable_t(int seqID, int u ) const
+{
+    assert( opt_var_xyz.count(seqID) > 0 );
+    assert( u>=0 && u<x0_T_c.at(seqID).size() );
+
+    return &( opt_var_xyz.at( seqID )[ 3*u ] );
+}
 
 
 void LocalBundle::solve()
 {
+    ceres::Problem problem;
+
+    // setup optization variable's initial guess
+    //      7 optimization variables for every frame
+    allocate_and_init_optimization_vars();
+
+
+    // add parameter blocks to the ceres::Problem
+        // If you are using Eigen’s Quaternion object, whose layout is x,y,z,w, then you should use EigenQuaternionParameterization.
+    ceres::LocalParameterization * eigenquaternion_parameterization = new ceres::EigenQuaternionParameterization;
+    for( auto it = x0_T_c.begin() ; it != x0_T_c.end() ; it++ )
+    {
+        int seqID = it->first;
+        auto pose_list = it->second;
+        for( int u=0 ; u<pose_list.size() ; u++ )
+        {
+            problem.AddParameterBlock( get_raw_ptr_to_opt_variable_q(seqID, u), 4 );
+            problem.SetParameterization( get_raw_ptr_to_opt_variable_q(seqID, u),  eigenquaternion_parameterization );
+            problem.AddParameterBlock( get_raw_ptr_to_opt_variable_t(seqID, u), 3 );
+
+        }
+    }
+    set_params_constant_for_seq( 0, problem );
+
+
+    // Setup residues - odometry
+    add_odometry_residues( problem );
+
+    #if 0
+    // set residues - correspondence
+    cout << TermColor::iGREEN() << "correspondence residues" << TermColor::RESET() << endl;
+    auto p = std::make_pair( 0, 1 );
+    cout << "p = (" << p.first << "," << p.second << ")\n";
+    cout << "normed_uv_a[p].size()=" << normed_uv_a[p].size() << endl;
+    for( int i=0 ; i<normed_uv_a[p].size() ; i++ )
+    {
+        cout << "---\n";
+        cout << "\t" << "normed_uv_a[p][i].cols()=" << normed_uv_a[p][i].cols() << endl;
+        cout << "\t" << "d_a[p][i].cols()=" << d_a[p][i].rows() << endl;
+        cout << "\t" << all_pair_idx[p][i].first << " <> " << all_pair_idx[p][i].second << endl; //frame# of the correspondence
+
+        auto f_it = std::find( seq_x_idx.at(0).begin(), seq_x_idx.at(0).end(), all_pair_idx[p][i].first );
+        auto h_it = std::find( seq_x_idx.at(1).begin(), seq_x_idx.at(1).end(), all_pair_idx[p][i].second );
+
+        if( f_it == seq_x_idx.at(0).end() || h_it == seq_x_idx.at(1).end() ) {
+            cout << "\tNA\n";
+            assert( false );
+        }
+        else {
+            cout << "\t";
+            cout << std::distance( seq_x_idx.at(0).begin(), f_it );
+            cout << " <> ";
+            cout << std::distance( seq_x_idx.at(1).begin(), h_it ) << endl;
+        }
+
+        int ff = std::distance( seq_x_idx.at(0).begin(), f_it );
+        int hh = std::distance( seq_x_idx.at(1).begin(), h_it );
+        cout << "\tframe_a#" << ff << " <> " << "frame_b#" << hh << endl;
+        double * tmp_ff_q = get_raw_ptr_to_opt_variable_q(0, ff );
+        double * tmp_ff_t = get_raw_ptr_to_opt_variable_t(0, ff );
+        double * tmp_hh_q = get_raw_ptr_to_opt_variable_q(1, hh);
+        double * tmp_hh_t = get_raw_ptr_to_opt_variable_t(1, hh );
+
+
+
+        for( int j=0 ; j<normed_uv_a[p][i].cols() ; j++ )
+        {
+            Vector3d a_3d, b_3d;
+            Vector2d a_2d, b_2d;
+            double ___d_a = d_a[p][i](j);
+            double ___d_b = d_b[p][i](j);
+            a_3d << ___d_a * normed_uv_a[p][i].col(j).topRows(3);
+            b_3d << ___d_b * normed_uv_b[p][i].col(j).topRows(3);
+            b_2d << normed_uv_b[p][i].col(j).topRows(2);
+            b_2d << normed_uv_b[p][i].col(j).topRows(2);
+
+            // 3d points from a, 2d points from b
+            ceres::CostFunction * cost_function = ProjectionError::Create( a_3d, b_2d  );
+            auto robust_loss = new CauchyLoss(.01) ;
+            problem.AddResidualBlock( cost_function, robust_loss, tmp_ff_q, tmp_ff_t, tmp_hh_q, tmp_hh_t );
+
+
+            // TODO 3d point from b, 2d point from a
+
+        }
+    }
+    cout << TermColor::iGREEN() << "END correspondence residues" << TermColor::RESET() << endl;
+    #endif
+
+
+
+
+    // solve
+    ceres::Solver::Options reint_options;
+    ceres::Solver::Summary reint_summary;
+    reint_options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    reint_options.minimizer_progress_to_stdout = true;
+    reint_options.max_num_iterations = 50;
+    // reint_options.enable_fast_removal = true;
+    ceres::Solve( reint_options, &problem, &reint_summary );
+    cout << reint_summary.BriefReport() << endl;
+
+
+
+
+
+    // retrive solution
+    Matrix4d optz__w_T_a0, optz__w_T_b0;
+    PoseManipUtils::raw_xyzw_to_eigenmat( get_raw_ptr_to_opt_variable_q(0,0), get_raw_ptr_to_opt_variable_t(0,0), optz__w_T_a0 );
+    PoseManipUtils::raw_xyzw_to_eigenmat( get_raw_ptr_to_opt_variable_q(1,0), get_raw_ptr_to_opt_variable_t(1,0), optz__w_T_b0 );
+    Matrix4d optz__a0_T_b0 = optz__w_T_a0.inverse() * optz__w_T_b0;
+    cout << "dddd          : " << PoseManipUtils::prettyprintMatrix4d( a0_T_b0.at( std::make_pair(0,1) ) ) << endl;
+    cout << "optz__a0_T_b0 : " << PoseManipUtils::prettyprintMatrix4d( optz__a0_T_b0 ) << endl;
+
+    // free
+    deallocate_optimization_vars();
+
 
 }
