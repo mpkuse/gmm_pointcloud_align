@@ -442,6 +442,7 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
 
     #if 1
     // -- GMS Matcher
+    #define choose_gms_type 0
     // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
     elp.tic();
     StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
@@ -1375,7 +1376,7 @@ int main( int argc, char ** argv )
 
             // random pairs, image correspondences only
             std::map< std::pair<int,int>, bool > repeatl;
-            for( int rand_itr=0 ; rand_itr<5 ; rand_itr++ )
+            for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
             {
                 cout << "\n-----------------------\n";
                 cout << "--- rand_itr=" << rand_itr ;
@@ -2014,8 +2015,8 @@ int main( int argc, char ** argv )
             ElapsedTime t_alternatingminimization( "Altering Minimizations");
             PoseComputation::alternatingMinimization( dst0, dst1, a_T_b, switch_weights );
             cout << "After alternatingMinimization: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
-            PoseComputation::refine_weighted( dst0, dst1, a_T_b, switch_weights );
-            cout << "After refine: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+            // PoseComputation::refine_weighted( dst0, dst1, a_T_b, switch_weights );
+            // cout << "After refine: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
             cout << TermColor::BLUE() << t_alternatingminimization.toc() << TermColor::RESET() << endl;
 
 
@@ -2032,6 +2033,10 @@ int main( int argc, char ** argv )
             bundle.inputOdometryImIdx( 1, odom_b_idx );
             bundle.print_inputs_info();
             bundle.toJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/");
+            bundle.solve();
+            a_T_b = bundle.retrive_optimized_pose( 0, 0, 1, 0 );
+
+
 
 
             //------- Refine Y, tx,ty,tz. get pitch and roll from odometry

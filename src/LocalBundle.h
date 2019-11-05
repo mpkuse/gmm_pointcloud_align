@@ -45,6 +45,10 @@ class LocalBundle
 {
 public:
     LocalBundle();
+    ~LocalBundle() {
+        // free
+        deallocate_optimization_vars();
+    }
 
 
     //-----------------//
@@ -93,6 +97,7 @@ public:
 
 private:
     std::map< int, double * > opt_var_qxqyqzqw, opt_var_xyz;
+    bool m_opt_vars_allocated = false;
     void allocate_and_init_optimization_vars();
     void deallocate_optimization_vars();
 
@@ -102,11 +107,20 @@ private:
     void set_params_constant_for_seq( int seqID, ceres::Problem& problem );
     void add_odometry_residues( ceres::Problem& problem );
     void add_correspondence_residues( ceres::Problem& problem );
+    void add_batched_correspondence_residues( ceres::Problem& problem );
 
 
     //--------------------//
     //----- Retrive ------//
     //-------------------//
+public:
+    // Call this after optimization. Used to get the relative pose between the series.
+    //  Prams
+    //      seqID_0, seqID_1: The sequence id. Usually you want to put 0, 1 respectively.
+    //      frame_0, frame_1: frame_0 is the index of frame in seqID_0. Similarly, frame_1 is the index of frame in seqID_1.
+    //  return
+    //      frame0_T_frame1
+    Matrix4d retrive_optimized_pose( int seqID_0, int frame_0, int seqID_1, int frame_1 ) const;
 
 
 
@@ -215,7 +229,7 @@ class ProjectionError
 {
 public:
 
-    ProjectionError( const Vector3d l_X, const Vector2d m_u ): l_3d( l_X), m_2d(m_u)
+    ProjectionError( const Vector4d l_X, const Vector3d m_u ): l_3d( l_X), m_2d(m_u)
     {
     }
 
@@ -239,19 +253,24 @@ public:
         w_T_m.topLeftCorner(3,3) = q_2.toRotationMatrix();
         w_T_m.col(3).topRows(3) = p_2;
 
-        Eigen::Matrix<T,4,1> l_3d_homogeneous;
-        l_3d_homogeneous << l_3d.cast<T>(), T(1.0);
+        // Eigen::Matrix<T,4,1> l_3d_homogeneous;
+        // l_3d_homogeneous << l_3d.cast<T>(), T(1.0);
+        // auto m_3d = w_T_m.inverse() * w_T_l * l_3d_homogeneous;
 
-        auto m_3d = w_T_m.inverse() * w_T_l * l_3d_homogeneous;
+        auto m_3d = w_T_m.inverse() * w_T_l * l_3d.cast<T>();
         residue_ptr[0] = T(m_2d(0)) - m_3d(0)/m_3d(2);
         residue_ptr[1] = T(m_2d(1)) - m_3d(1)/m_3d(2);
+
+        // scale the loss to make it more important relative to odometry loss.
+        residue_ptr[0] *= T(2.);
+        residue_ptr[1] *= T(2.);
 
         return true;
 
     }
 
 
-        static ceres::CostFunction* Create( const Vector3d l_X, const Vector2d m_u, const double weight=1.0 )
+        static ceres::CostFunction* Create( const Vector4d l_X, const Vector3d m_u, const double weight=1.0 )
         {
           return ( new ceres::AutoDiffCostFunction<ProjectionError,2,4,3,4,3>
             (
@@ -262,7 +281,86 @@ public:
 
 
 private:
-    Vector3d l_3d;
-    Vector2d m_2d;
+    // now in homogeneous co-ordinates
+    Vector4d l_3d;
+    Vector3d m_2d;
+
+};
+
+class BatchProjectionError
+{
+public:
+
+    BatchProjectionError( const MatrixXd l_X, const MatrixXd m_u, const VectorXd ptwise_weights, const double _lambda_ ):
+        l_3d( l_X ), m_2d( m_u ), pwt( ptwise_weights ), lambda( _lambda_ )
+    {
+        // l_X: 4xN
+        // m_u: 3xN
+        assert( l_X.rows() == 4 && m_u.rows() == 3 );
+        assert( l_X.cols() == m_u.cols() && l_X.cols() == ptwise_weights.size() && l_X.cols() > 0 );
+
+    }
+
+    // minimize \sum_i || PI( w_T_l * w_T_m * l_3d[i] ) - m_u[i] ||
+    // q1, t1 : w_T_l
+    // q2, t2 : w_T_m
+    template <typename T>
+    bool operator() ( const T* const q1, const T* const t1,   const T* const q2, const T* const t2, T* residue_ptr ) const
+    {
+        // q1,t1 --> w_T_l
+        Eigen::Map<const Eigen::Matrix<T,3,1> > p_1( t1 );
+        Eigen::Map<const Eigen::Quaternion<T> > q_1( q1 );
+        Eigen::Matrix<T,4,4> w_T_l = Eigen::Matrix<T,4,4>::Identity();
+        w_T_l.topLeftCorner(3,3) = q_1.toRotationMatrix();
+        w_T_l.col(3).topRows(3) = p_1;
+
+        // q2,t2 --> w_T_m
+        Eigen::Map<const Eigen::Matrix<T,3,1> > p_2( t2 );
+        Eigen::Map<const Eigen::Quaternion<T> > q_2( q2 );
+        Eigen::Matrix<T,4,4> w_T_m = Eigen::Matrix<T,4,4>::Identity();
+        w_T_m.topLeftCorner(3,3) = q_2.toRotationMatrix();
+        w_T_m.col(3).topRows(3) = p_2;
+
+
+        auto m_3d = w_T_m.inverse() * w_T_l * l_3d.cast<T>();
+
+        // TODO try sqrt()
+        int n =0;
+        for( auto i=0 ; i<m_2d.cols() ; i++ )
+        {
+            if( abs(m_3d(2,i)) < T(1e-3) )
+                continue;
+            auto del_X = T( m_2d(0,i) ) - m_3d(0,i)/m_3d(2,i);
+            auto del_Y = T( m_2d(1,i) ) - m_3d(1,i)/m_3d(2,i);
+
+            residue_ptr[0] += (del_X*del_X + del_Y*del_Y) * T(pwt(i));
+            n++;
+        }
+        residue_ptr[0] /= T( n );
+        residue_ptr[0] *= T(lambda);
+
+        // residue_ptr[0] = m_3d(0,0) - T( lambda );
+
+        return true;
+    }
+
+    static ceres::CostFunction* Create( MatrixXd l_X, MatrixXd m_u, VectorXd ptwise_weights,  double _lambda_ )
+    {
+        assert( l_X.rows() == 4 && m_u.rows() == 3 );
+        assert( l_X.cols() == m_u.cols() && l_X.cols() == ptwise_weights.size() && l_X.cols() > 0 );
+        assert( _lambda_ > 0 );
+        return ( new ceres::AutoDiffCostFunction<BatchProjectionError,1,4,3,4,3>
+          (
+            new BatchProjectionError(l_X, m_u, ptwise_weights, _lambda_ )
+          )
+        );
+    }
+
+
+
+private:
+    MatrixXd l_3d, m_2d;
+    VectorXd pwt;
+    double lambda;
 
 };

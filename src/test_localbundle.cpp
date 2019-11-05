@@ -17,6 +17,7 @@ using namespace Eigen;
 #include <opencv2/core/eigen.hpp>
 
 #include "LocalBundle.h"
+#include "utils/ElapsedTime.h"
 
 int main()
 {
@@ -41,5 +42,9 @@ int main()
     bundle.fromJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/" );
     bundle.print_inputs_info();
 
+    ElapsedTime tp("Bundle Solver");
     bundle.solve();
+    cout << tp.toc() << endl;
+
+    bundle.retrive_optimized_pose( 0, 0, 1, 0 );
 }
