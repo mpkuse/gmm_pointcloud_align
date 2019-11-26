@@ -201,17 +201,30 @@ FILE(GLOB CamodocalCameraModelSources
     )
 
 
+option(COMPILE_UNIT_TEST "Compile unit tests" OFF) #OFF by default. catkin_make -DCOMPILE_UNIT_TEST=ON will compile it. OFF will skip it
+
+if(COMPILE_UNIT_TEST)
 
 add_executable( test_objloader
     src/test_objloader.cpp
     ${KuseUtils}
     )
 
+    target_link_libraries( test_objloader
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
+
 add_executable( test_multivariate_gaussian
     src/test_multivariate_gaussian.cpp
     ${KuseUtils}
     ${GaussUtils}
     )
+
+    target_link_libraries( test_multivariate_gaussian
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
 
 add_executable( gmm_1d
     src/gmm_1d.cpp
@@ -220,13 +233,22 @@ add_executable( gmm_1d
     ${GaussUtils}
     )
 
+    target_link_libraries( gmm_1d
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
+
+
 add_executable( gmm_2d
     src/gmm_2d.cpp
     src/GMMFit.cpp
     ${KuseUtils}
     ${GaussUtils}
     )
-
+    target_link_libraries( gmm_2d
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
 
 add_executable( gmm_realobj
     src/gmm_realobj.cpp
@@ -234,6 +256,11 @@ add_executable( gmm_realobj
     ${GaussUtils}
     src/GMMFit.cpp
     )
+
+       target_link_libraries( gmm_realobj
+          ${catkin_LIBRARIES}
+          ${OpenCV_LIBS}
+        )
 
 add_executable( local_ptcloud
     src/local_ptcloud.cpp
@@ -243,17 +270,12 @@ add_executable( local_ptcloud
     src/SurfelMap.cpp
     )
 
-    add_executable( local_ptcloud2
-        src/local_ptcloud2.cpp
-        ${CamodocalCameraModelSources}
-        ${KuseUtils}
-        #src/SlicClustering.cpp
-        #src/SurfelMap.cpp
-        ${KaixuanUtils}
-        src/PoseComputation.cpp
-        src/Triangulation.cpp
-        src/LocalBundle.cpp
-        )
+        target_link_libraries( local_ptcloud
+           ${catkin_LIBRARIES}
+           ${OpenCV_LIBS}
+         )
+
+
 
     add_executable( icl_nuim_tool
         src/icl_nuim_tool.cpp
@@ -263,6 +285,14 @@ add_executable( local_ptcloud
         ${KaixuanUtils}
         )
 
+
+              target_link_libraries( icl_nuim_tool
+                 ${catkin_LIBRARIES}
+                 ${OpenCV_LIBS}
+                 #${THEIA_LIBRARIES}
+               )
+
+
     add_executable( densesurfelmapping_standalone
         #src/surfel_fusion/main.cpp
         src/densesurfelmapping_standalone.cpp
@@ -270,14 +300,30 @@ add_executable( local_ptcloud
         ${KaixuanUtils}
     )
 
+
+          target_link_libraries( densesurfelmapping_standalone
+             ${catkin_LIBRARIES}
+             ${OpenCV_LIBS}
+           )
+
 add_executable( inspect_data
     src/inspect_data.cpp
     )
+
+    target_link_libraries( inspect_data
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
 
     add_executable( test_inspect_checkpoint
         src/test_inspect_checkpoint.cpp
         ${KuseUtils}
         )
+
+              target_link_libraries( test_inspect_checkpoint
+                 ${catkin_LIBRARIES}
+                 ${OpenCV_LIBS}
+               )
 
 add_executable( test_slic
     src/test_slic.cpp
@@ -285,13 +331,30 @@ add_executable( test_slic
     src/SlicClustering.cpp
     )
 
+          target_link_libraries( test_slic
+             ${catkin_LIBRARIES}
+             ${OpenCV_LIBS}
+           )
+
 add_executable( mean_of_vector_using_hubernorm
     src/mean_of_vector_using_hubernorm.cpp
     )
 
+
+         target_link_libraries( mean_of_vector_using_hubernorm
+            ${catkin_LIBRARIES}
+            ${OpenCV_LIBS}
+          )
+
+
 #add_executable( test_nanoflann
 #        src/test_nanoflann.cpp
 #        )
+
+#      target_link_libraries( test_nanoflann
+#         ${catkin_LIBRARIES}
+#         ${OpenCV_LIBS}
+#       )
 
 add_executable( test_posecomputation
     src/test_posecomputation.cpp
@@ -300,17 +363,40 @@ add_executable( test_posecomputation
     )
 
 
+
+    target_link_libraries( test_posecomputation
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
+
+
+
 add_executable( test_lk_opticalflow
     src/test_lk_opticalflow.cpp
     ${KuseUtils}
     src/OpticalFlowTracker.cpp
 )
 
+
+
+
+target_link_libraries( test_lk_opticalflow
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+ )
+
 add_executable( test_triangulation
     src/test_triangulation.cpp
 #    ${KuseUtils}
     src/Triangulation.cpp
 )
+
+
+
+target_link_libraries( test_triangulation
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+ )
 
 
 add_executable( test_monocular_depth
@@ -321,11 +407,71 @@ add_executable( test_monocular_depth
     src/utils/PointFeatureMatching.cpp
     )
 
-add_executable( test_localbundle
-    src/test_localbundle.cpp
+
+
+     target_link_libraries( test_monocular_depth
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
+
+
+
+
+endif(COMPILE_UNIT_TEST)
+unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
+
+add_executable( local_ptcloud2
+    src/local_ptcloud2.cpp
+    ${CamodocalCameraModelSources}
     ${KuseUtils}
+    #src/SlicClustering.cpp
+    #src/SurfelMap.cpp
+    ${KaixuanUtils}
+    src/PoseComputation.cpp
+    src/Triangulation.cpp
     src/LocalBundle.cpp
     )
+
+target_link_libraries( local_ptcloud2
+            ${catkin_LIBRARIES}
+            ${OpenCV_LIBS}
+            #${THEIA_LIBRARIES}
+          )
+
+add_executable( test_precise_gms
+    src/test_precise_gms.cpp
+    ${KuseUtils}
+    )
+
+target_link_libraries( test_precise_gms
+          ${catkin_LIBRARIES}
+          ${OpenCV_LIBS}
+        )
+
+
+add_executable( test_localbundle
+  src/test_localbundle.cpp
+  ${KuseUtils}
+  src/LocalBundle.cpp
+  )
+
+target_link_libraries( test_localbundle
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
+
+ add_executable( test_edge_alignment
+   src/test_edge_alignment.cpp
+   ${KuseUtils}
+   src/LocalBundle.cpp
+   src/EdgeAlignment.cpp
+   )
+
+ target_link_libraries( test_edge_alignment
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -342,109 +488,22 @@ add_executable( test_localbundle
 #   ${catkin_LIBRARIES}
 # )
 
-target_link_libraries( test_objloader
-   ${catkin_LIBRARIES}
-   ${OpenCV_LIBS}
- )
-
- target_link_libraries( test_multivariate_gaussian
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBS}
-  )
-
- target_link_libraries( gmm_1d
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBS}
-  )
-
-  target_link_libraries( gmm_2d
-     ${catkin_LIBRARIES}
-     ${OpenCV_LIBS}
-   )
-
-   target_link_libraries( gmm_realobj
-      ${catkin_LIBRARIES}
-      ${OpenCV_LIBS}
-    )
-
-    target_link_libraries( local_ptcloud
-       ${catkin_LIBRARIES}
-       ${OpenCV_LIBS}
-     )
-
-     target_link_libraries( local_ptcloud2
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        #${THEIA_LIBRARIES}
-      )
-
-
-      target_link_libraries( icl_nuim_tool
-         ${catkin_LIBRARIES}
-         ${OpenCV_LIBS}
-         #${THEIA_LIBRARIES}
-       )
-
-      target_link_libraries( densesurfelmapping_standalone
-         ${catkin_LIBRARIES}
-         ${OpenCV_LIBS}
-       )
-
-
-     target_link_libraries( inspect_data
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-      )
-      target_link_libraries( test_inspect_checkpoint
-         ${catkin_LIBRARIES}
-         ${OpenCV_LIBS}
-       )
-
-      target_link_libraries( test_slic
-         ${catkin_LIBRARIES}
-         ${OpenCV_LIBS}
-       )
-
-     target_link_libraries( mean_of_vector_using_hubernorm
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-      )
-
-#      target_link_libraries( test_nanoflann
-#         ${catkin_LIBRARIES}
-#         ${OpenCV_LIBS}
-#       )
-
-
-target_link_libraries( test_posecomputation
-   ${catkin_LIBRARIES}
-   ${OpenCV_LIBS}
- )
-
-
-target_link_libraries( test_lk_opticalflow
-   ${catkin_LIBRARIES}
-   ${OpenCV_LIBS}
- )
 
 
 
-target_link_libraries( test_triangulation
-   ${catkin_LIBRARIES}
-   ${OpenCV_LIBS}
- )
 
 
- target_link_libraries( test_monocular_depth
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBS}
-  )
 
 
-  target_link_libraries( test_localbundle
-     ${catkin_LIBRARIES}
-     ${OpenCV_LIBS}
-   )
+
+
+
+
+
+
+
+
+
 
 
 #############

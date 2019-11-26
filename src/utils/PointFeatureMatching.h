@@ -14,6 +14,12 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#if 0
+#include <opencv2/nonfree/features2d.hpp>
+#include <opencv2/nonfree/nonfree.hpp>
+#endif
+
+
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -87,7 +93,22 @@ public:
     // correspondences and return these.
     static void gms_point_feature_matches_scaled( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
                                 MatrixXd& u, MatrixXd& ud,
-                                float scale, int n_orb_feat=2000 );
+                                float scale, int n_orb_feat=3000 );
+
+
+    // Given a match refines it. Use this with GMS matcher which usually gives quite dense matching but not as precise.
+    //      This does the following:
+    //          a. Sparify the matches
+    //          b. Do optical flow tracking using the matches as initial guess for LKOpticalFlow. This is done to improve precision of the point matches.
+    //      Params:
+    //      im_a, im_b : Input images (full resolution)
+    //      uv_a, uv_b : Coarse matching points 2xN or 3xN. Initial matches to be refined for those 2 images respectively.
+    //      refined_uv_a, refined_uv_b [output] : refined and sparsified points
+    static void refine_and_sparsify_matches(
+        const cv::Mat im_a, const cv::Mat im_b,
+        const MatrixXd& uv_a, const MatrixXd& uv_b,
+        MatrixXd& refined_uv_a, MatrixXd& refined_uv_b
+    );
 
     // u : 3xN. (x,y) or (colID,rowID)
     static void point_feature_matches( const cv::Mat& imleft_undistorted, const cv::Mat& imright_undistorted,
@@ -148,6 +169,15 @@ public:
     static MatrixXd image_coordinates_to_normalized_image_coordinates(
         const camodocal::CameraPtr camera,
         const MatrixXd& uv );
+
+
+    // Give as input the normalized image co-ordinates and get the image co-ordinates
+    // Params:
+    //      camera [input]: The camodocal (general) camera
+    //      normed_uv [input]: as a 3xN or 2xN matrix
+    //      uv [output] : The image co-ordinates
+    static MatrixXd normalized_image_cordinates_to_image_coordinates(
+        const camodocal::CameraPtr camera, const MatrixXd& normed_uv );
 
 
     // Given image co-ordinates and the depth_image, will lookup the depth values at those image co-ordinates

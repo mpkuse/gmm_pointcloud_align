@@ -59,6 +59,8 @@ void write_to_disk_for_goicp( MatrixXd& __p , const string goicp_fname )
 {
     cout << TermColor::iGREEN() << "===  write_to_disk_for_goicp() ===\n" << TermColor::RESET();
 
+
+    #if 0 // make this to '1' to enable transform of the point set to substract mean and scale
     VectorXd m = __p.rowwise().mean();
 
     VectorXd mx = __p.rowwise().maxCoeff();
@@ -78,14 +80,27 @@ void write_to_disk_for_goicp( MatrixXd& __p , const string goicp_fname )
         __p(2,i) = (   (__p(2,i) - mn(2)) / (mx(2) - mn(2)) )*2.0 - 1.0;
     }
     cout << "p(after):\n" << __p.leftCols(5) << endl;
+    #endif
+
+
+    // isnan
+    int n_nan = 0;
+    for( int i=0 ; i<__p.cols() ; i++ )
+    {
+        if( isnan( __p(0,i) ) || isnan( __p(1,i) ) || isnan( __p(2,i) ) )
+            n_nan++;
+    }
 
 
     ofstream myfile;
-    cout << "Open File: " << goicp_fname << endl;
+    cout << "[write_to_disk_for_goicp]Open File: " << goicp_fname << endl;
+    cout << "[write_to_disk_for_goicp]n_nan=" << n_nan << endl;
     myfile.open (goicp_fname);
-    myfile << __p.cols() << endl;
+    myfile << __p.cols()-n_nan << endl;
     for( int i=0 ; i<__p.cols() ; i++ )
     {
+        if( isnan( __p(0,i) ) || isnan( __p(1,i) ) || isnan( __p(2,i) ) )
+            continue;
         myfile << __p(0,i) << " " << __p(1,i) << " " << __p(2,i) << " " << endl;
     }
     myfile.close();
@@ -445,7 +460,11 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     #define choose_gms_type 0
     // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
     elp.tic();
-    StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, uv_a, uv_b );
+    MatrixXd gms_uv_a, gms_uv_b;
+    cout << "[main]attempt gms_point_feature_matches\n";
+    StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, gms_uv_a, gms_uv_b );
+    cout << "[main]attempt refine_and_sparsify_matches\n";
+    StaticPointFeatureMatching::refine_and_sparsify_matches( image_a, image_b, gms_uv_a, gms_uv_b, uv_a, uv_b );
     cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
 
     // StaticPointFeatureMatching::gms_point_feature_matches_scaled( image_a, image_b, uv_a, uv_b, 0.5 );
@@ -461,7 +480,10 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
 
     cv::Mat dst_gmsmatcher;
     MiscUtils::plot_point_pair( image_a, uv_a, idx_a,
-                                image_b, uv_b, idx_b, dst_gmsmatcher, 3, "gms plot (resize 0.5)" );
+                                image_b, uv_b, idx_b, dst_gmsmatcher,
+                                //3, "gms plot (resize 0.5)" );
+                                cv::Scalar( 0,0,255 ), cv::Scalar( 0,255,0 ), false, "gms plot (resize 0.5)" );
+
     cv::resize(dst_gmsmatcher, dst_gmsmatcher, cv::Size(), 0.5, 0.5);
     cv::imshow( "GMSMatcher", dst_gmsmatcher );
     #endif
@@ -1336,6 +1358,7 @@ int main( int argc, char ** argv )
             cout << "\nGet Odoms for seq-a:\n";
             vector< Matrix4d > odom__a0_T_a;
             vector< int > odom_a_idx;
+            vector< cv::Mat > images_seq_a, depthmap_seq_a;
             for( auto it=all_i[0].begin() ; it!=all_i[0].end() ; it++ )
             {
                 cout << *it << "\t";
@@ -1346,11 +1369,29 @@ int main( int argc, char ** argv )
                 Matrix4d a0_T_a = w_T_a0.inverse() * w_T_a;
                 odom__a0_T_a.push_back( a0_T_a );
                 odom_a_idx.push_back( *it );
+
+
+                #if 0 //image only
+                cv::Mat __im__;
+                bool status_im = xloader.retrive_image_data_from_json_datanode( STATE["DataNodes"][*it], __im__ );
+                assert( status_im );
+                images_seq_a.push_back( __im__ );
+                #endif
+
+
+                #if 1 //image and depth
+                cv::Mat __im__, __depth__;
+                bool status_im = xloader.retrive_image_data_from_json_datanode( STATE["DataNodes"][*it], __im__, __depth__ );
+                assert( status_im );
+                images_seq_a.push_back( __im__ );
+                depthmap_seq_a.push_back( __depth__ );
+                #endif
             }
             cout << endl;
             cout << "Get Odoms for seq-b:\n";
             vector< Matrix4d > odom__b0_T_b;
             vector< int > odom_b_idx;
+            vector< cv::Mat > images_seq_b, depthmap_seq_b;
             for( auto it=all_i[1].begin() ; it!=all_i[1].end() ; it++ )
             {
                 cout << *it << "\t";
@@ -1361,6 +1402,22 @@ int main( int argc, char ** argv )
                 Matrix4d b0_T_b = w_T_b0.inverse() * w_T_b;
                 odom__b0_T_b.push_back( b0_T_b );
                 odom_b_idx.push_back( *it );
+
+                #if 0
+                cv::Mat __im__;
+                bool status_im = xloader.retrive_image_data_from_json_datanode( STATE["DataNodes"][*it], __im__ );
+                assert( status_im );
+                images_seq_b.push_back( __im__ );
+                #endif
+
+
+                #if 1 //image and depth
+                cv::Mat __im__, __depth__;
+                bool status_im = xloader.retrive_image_data_from_json_datanode( STATE["DataNodes"][*it], __im__, __depth__ );
+                assert( status_im );
+                images_seq_b.push_back( __im__ );
+                depthmap_seq_b.push_back( __depth__ );
+                #endif
             }
             cout << endl;
 
@@ -1408,12 +1465,17 @@ int main( int argc, char ** argv )
                 //----
                 MatrixXd uv_a, uv_b;
                 VectorXd d_a, d_b, sf;
-                image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
+                bool im_corres_status = image_correspondences( STATE, xloader, idx_a, idx_b, uv_a, uv_b, d_a, d_b, sf );
 
                 int n_matches = uv_a.cols();
-                if( n_matches < 50 ) { //for gmsmatcher keep a 10x threshold
+                if( n_matches <10 ) { //for gmsmatcher keep a 10x threshold
                 // if( n_matches < 5 ) {
                     cout << "n_matches=" << n_matches << " these are too few..ignore\n";
+                    continue;
+                }
+
+                if( im_corres_status == false ) {
+                    cout << "im_corres_status is false....continue\n";
                     continue;
                 }
 
@@ -1899,7 +1961,7 @@ int main( int argc, char ** argv )
 
                 // put data for this pair in gobal container
                 #define _GLOBAL_CONTAINER_FILL_
-                cout << "\n===== put data for this pair (idx_a=" << idx_a << ", idx_b=" << idx_b << ") in gobal container\n";
+                cout << "\n===== put data for this pair (idx_a=" << idx_a << ", idx_b=" << idx_b << "), normed_uv_a.cols()=" << normed_uv_a.cols() << " in gobal container\n";
 
                 // 1. a0_T_a, b0_T_b
                 // 2. normed_uv_a, normed_uv_b
@@ -1917,30 +1979,36 @@ int main( int argc, char ** argv )
                 all_a0_T_a.push_back( a0_T_a );
                 all_b0_T_b.push_back( b0_T_b );
                 all_pair_idx.push_back( std::make_pair( idx_a, idx_b ) );
+                cout << "[main] 1. done\n";
 
                 //--2.
                 all_normed_uv_a.push_back( normed_uv_a );
                 all_normed_uv_b.push_back( normed_uv_b );
+                cout << "[main] 2. done\n";
 
                 //--3.
                 all_d_a.push_back( d_a );
                 all_d_b.push_back( d_b );
                 all_sf.push_back( sf );
+                cout << "[main] 3. done\n";
 
                 //--4. (use the above 3 data and make change the co-ordinate frame to a0 and b0 respectively)
                 MatrixXd aX = MatrixXd::Constant( 4, normed_uv_a.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_a.cols() ; q++ ) //depth multiplication
                 {
+                    // cout << "q="<< q << "    "<<  d_a.size() <<  "\n";
                     #if 1
                     double z = d_a(q);
                     #else
                     double z = monocular_d_a(q);
                     #endif
+
                     aX(0,q) = normed_uv_a(0,q) * z;
                     aX(1,q) = normed_uv_a(1,q) * z;
                     aX(2,q) = normed_uv_a(2,q) * z;
                     aX(3,q) = 1.0;
                 }
+                cout << "[main] 4.1 done\n";
 
                 MatrixXd bX = MatrixXd::Constant( 4, normed_uv_b.cols() , 1.0 );
                 for( int q=0 ; q<normed_uv_b.cols() ; q++ ) //depth multiplication
@@ -1955,6 +2023,7 @@ int main( int argc, char ** argv )
                     bX(2,q) = normed_uv_b(2,q) * z;
                     bX(3,q) = 1.0;
                 }
+                cout << "[main] 4.2 done\n";
 
                 vector<bool> valids;
                 for( int q=0 ; q<normed_uv_a.cols() ; q++ )
@@ -1979,6 +2048,7 @@ int main( int argc, char ** argv )
                     else valids.push_back(false);
                     #endif
                 }
+                cout << "[main] 4.3 done\n";
 
 
                 assert( valids.size() == normed_uv_a.cols() );
@@ -1990,9 +2060,11 @@ int main( int argc, char ** argv )
                 all_b0X.push_back( b0X );
                 all_valids.push_back( valids );
 
+                cout << "END OF ITR=" << rand_itr << endl;
+
 
             } // END for( int rand_itr=0 ; rand_itr<10 ; rand_itr++ )
-        end_of_random_draws: ;
+        end_of_random_draws: cout << "label end_of_random_draws\n";
 
             cout << TermColor::GREEN() << "\n=====Pose Computation\n" << TermColor::RESET();
 
@@ -2025,16 +2097,29 @@ int main( int argc, char ** argv )
             bundle.inputOdometry( 0, odom__a0_T_a );
             bundle.inputOdometry( 1, odom__b0_T_b );
             bundle.inputInitialGuess( 0, 1, a_T_b );
+            bundle.inputOdometry_a0_T_b0( 0, 1, w_T_a0.inverse() * w_T_b0 );
             bundle.inputFeatureMatches( 0, 1, all_normed_uv_a, all_normed_uv_b );
             bundle.inputFeatureMatchesDepths( 0, 1, all_d_a, all_d_b, all_sf );
             bundle.inputFeatureMatchesPoses( 0, 1, all_a0_T_a, all_b0_T_b );
             bundle.inputFeatureMatchesImIdx( 0, 1, all_pair_idx ); //< optional , debug
             bundle.inputOdometryImIdx( 0, odom_a_idx );
             bundle.inputOdometryImIdx( 1, odom_b_idx );
+
+            #if 1 // input images
+            bundle.inputSequenceImages( 0, images_seq_a); // if image sequences are not set then cannot do reprojection_test_plot
+            bundle.inputSequenceImages( 1, images_seq_b);
+            #endif
+
+            #if 1 //input depthmaps
+            bundle.inputSequenceDepthMaps( 0, depthmap_seq_a);
+            bundle.inputSequenceDepthMaps( 1, depthmap_seq_b);
+            #endif
+
             bundle.print_inputs_info();
             bundle.toJSON("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/");
             bundle.solve();
             a_T_b = bundle.retrive_optimized_pose( 0, 0, 1, 0 );
+            xloader.left_camera->writeParametersToYamlFile( "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/camera.yaml" );
 
 
 
@@ -2129,7 +2214,8 @@ int main( int argc, char ** argv )
         {
             cout << TermColor::GREEN() << "==== Manual Pose Input ====\n" << TermColor::RESET();
 
-            //
+            #if 0
+            // ypr
             double ypr[4] = {-32.145,32.535,-14.899};
             double xyz[4] = {-1.113,-0.113,0.122};
 
@@ -2143,8 +2229,29 @@ int main( int argc, char ** argv )
 
             Matrix4d a_T_b = Matrix4d::Identity();
             PoseManipUtils::rawyprt_to_eigenmat( ypr, xyz, a_T_b );
-            cout << "a_T_b: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
 
+            #endif
+
+
+            #if 1
+            // 3x3 matrix followed by translation vector
+            Matrix4d a_T_b = Matrix4d::Identity();
+            cout << "Keyboard input 0th row of rotation matrix a_T_b (3 floats, space separated):";
+            cin >> a_T_b(0,0) >>  a_T_b(0,1) >>  a_T_b(0,2) ;
+            cout << "Keyboard input 1st row of rotation matrix a_T_b (3 floats, space separated):";
+            cin >> a_T_b(1,0) >>  a_T_b(1,1) >>  a_T_b(1,2) ;
+            cout << "Keyboard input 2nd row of rotation matrix a_T_b (3 floats, space separated):";
+            cin >> a_T_b(2,0) >>  a_T_b(2,1) >>  a_T_b(2,2) ;
+
+
+            cout << "\nInput translation vector of a_T_b (space separated)";
+            cin >> a_T_b(0,3) >>  a_T_b(1,3) >>  a_T_b(2,3) ;
+
+            #endif
+
+
+            cout << "a_T_b: " << PoseManipUtils::prettyprintMatrix4d( a_T_b ) << endl;
+            cout << "a_T_b:\n" << a_T_b << endl;
 
             MatrixXd AAA = all_odom_poses[ 0 ][0].inverse() * vec_surf_map[ 0 ]->get_surfel_positions();
             RosPublishUtils::publish_3d( marker_pub, AAA,
@@ -2229,7 +2336,9 @@ int main( int argc, char ** argv )
         cout << "_w_X : " << _w_X.rows() << "x" << _w_X.cols() << endl;
         MatrixXd __p = all_odom_poses[ it->first ][0].inverse() * _w_X; // 3d points in this series's 1st camera ref frame
 
-        string goicp_fname = xloader.base_path + "/ptcld_goicp_" + to_string( it->first ) + ".txt";
+        // string goicp_fname = xloader.base_path + "/ptcld_goicp_" + to_string( it->first ) + ".txt";
+        string goicp_fname = string("/app/catkin_ws/src/gmm_pointcloud_align/resources/") + "/ptcld_goicp_" + to_string( it->first ) + ".txt";
+
         write_to_disk_for_goicp( __p, goicp_fname );
     }
 

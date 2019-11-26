@@ -184,6 +184,53 @@ void MiscUtils::eigen_2_point2f( const MatrixXd& inp, std::vector<cv::Point2f>& 
 
 }
 
+
+void MiscUtils::point3f_2_eigen( const std::vector<cv::Point3f>& p, MatrixXd& dst, bool make_homogeneous )
+{
+    assert( p.size() > 0 && "[MiscUtils::point3f_2_eigen] input point vector looks empty\n");
+    // cout << "p.size=" << p.size() << endl;
+    dst = MatrixXd::Constant( (make_homogeneous?4:3), p.size(), 1.0 );
+
+    for( int i=0 ;i<p.size() ; i++ )
+    {
+        dst( 0, i ) = p[i].x;
+        dst( 1, i ) = p[i].y;
+        dst( 2, i ) = p[i].z;
+    }
+
+}
+
+void MiscUtils::eigen_2_point3f( const MatrixXd& inp, std::vector<cv::Point3f>& p )
+{
+    assert( inp.rows() == 3 || inp.rows() == 4 );
+    assert( inp.cols() > 0 );
+    p.clear();
+
+    bool homogeneous = false;
+    if( inp.rows() == 3 )
+    {
+        homogeneous = true;
+    }
+
+    for( int i=0 ; i<inp.cols() ; i++ )
+    {
+        cv::Point3f pt;
+        pt.x = (float) inp(0,i);
+        pt.y = (float) inp(1,i);
+        pt.z = (float) inp(2,i);
+        #if 0
+        if( homogeneous == true ) {
+            assert( abs(inp(3,i))>1e-7 ); //z cannot be zero
+            pt.x /= (float) inp(3,i);
+            pt.y /= (float) inp(3,i);
+            pt.z /= (float) inp(3,i);
+        }
+        #endif
+        p.push_back(pt);
+    }
+
+}
+
 int MiscUtils::total_true( const vector<bool>& V )
 {
     int s=0;
@@ -202,6 +249,42 @@ int MiscUtils::total_positives( const vector<uchar>& V )
             s++;
 
     return s;
+}
+
+
+
+vector<bool> MiscUtils::vector_of_bool_AND( const vector<bool>& A, const vector<bool>& B )
+{
+    assert( A.size() == B.size() );
+    int n = (int) A.size();
+    vector<bool> valids;
+    valids.clear();
+    for( int i=0 ; i<n ; i++ )
+    {
+        if( A[i] && B[i] )
+            valids.push_back( true );
+        else
+            valids.push_back( false );
+    }
+    return valids;
+}
+
+
+
+vector<uchar> MiscUtils::vector_of_uchar_AND( const vector<uchar>& A, const vector<uchar>& B )
+{
+    assert( A.size() == B.size() );
+    int n = (int) A.size();
+    vector<uchar> valids;
+    valids.clear();
+    for( int i=0 ; i<n ; i++ )
+    {
+        if( A[i] > 0 && B[i] > 0  )
+            valids.push_back( A[i] );
+        else
+            valids.push_back( (uchar)0 );
+    }
+    return valids;
 }
 
 VectorXd MiscUtils::to_eigen( const vector<uchar>& V )
@@ -372,8 +455,10 @@ void MiscUtils::plot_point_sets( const cv::Mat& im, const MatrixXd& pts_set, cv:
     if( msg.length() > 0 ) {
       vector<std::string> msg_split;
       msg_split = MiscUtils::split( msg, ';' );
+    //   cv::Scalar text_color = cv::Scalar(0,255,255);
+      cv::Scalar text_color = color;
       for( int q=0 ; q<msg_split.size() ; q++ )
-        cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, .95, cv::Scalar(0,255,255) );
+        cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.5, color, 2.  );
     }
 
 
@@ -434,8 +519,10 @@ void MiscUtils::plot_point_sets( const cv::Mat& im, const cv::Mat& pts_set, cv::
   if( msg.length() > 0 ) {
     vector<std::string> msg_split;
     msg_split = MiscUtils::split( msg, ';' );
+    //   cv::Scalar text_color = cv::Scalar(0,255,255);
+      cv::Scalar text_color = color;
     for( int q=0 ; q<msg_split.size() ; q++ )
-      cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, .95, cv::Scalar(0,255,255) );
+      cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.5, text_color, 2.0 );
   }
 
 
@@ -492,7 +579,7 @@ void MiscUtils::plot_point_sets( cv::Mat& im, const MatrixXd& pts_set, cv::Mat& 
     vector<std::string> msg_split;
     msg_split = MiscUtils::split( msg, ';' );
     for( int q=0 ; q<msg_split.size() ; q++ )
-      cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, .95, cv::Scalar(0,255,255) );
+      cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.5, cv::Scalar(0,255,255), 2.0 );
   }
 
 
@@ -537,7 +624,7 @@ void MiscUtils::plot_point_sets( const cv::Mat& im, const MatrixXd& pts_set, cv:
         vector<std::string> msg_split;
         msg_split = MiscUtils::split( msg, ';' );
         for( int q=0 ; q<msg_split.size() ; q++ )
-          cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, .95, cv::Scalar(0,255,255) );
+          cv::putText( dst, msg_split[q], cv::Point(5,20+20*q), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.5, cv::Scalar(0,255,255), 2.0 );
       }
 
 
@@ -813,6 +900,83 @@ void MiscUtils::plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA, int i
 
 }
 
+
+
+void MiscUtils::plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA,
+                      const cv::Mat& imB, const MatrixXd& ptsB,
+                      cv::Mat& dst,
+                      const cv::Scalar& color_marker,
+                      const string& msg,
+                      const cv::Scalar& color_line,
+                      bool annotate_pts )
+{
+  // ptsA : ptsB : 2xN or 3xN
+
+  assert( imA.rows == imB.rows && imA.rows > 0  );
+  assert( imA.cols == imB.cols && imA.cols > 0  );
+  assert( ptsA.cols() == ptsB.cols() && ptsA.cols() > 0 );
+  // assert( mask.size() == ptsA.cols() );
+
+  cv::Mat outImg_;
+  cv::hconcat(imA, imB, outImg_);
+
+    cv::Mat outImg;
+    if( outImg_.channels() == 3 )
+        outImg = outImg_;
+    else
+        cv::cvtColor( outImg_, outImg, CV_GRAY2BGR );
+
+
+
+
+  // loop over all points
+  int count = 0;
+  for( int kl=0 ; kl<ptsA.cols() ; kl++ )
+  {
+    // if( mask(kl) == 0 )
+    //   continue;
+
+    count++;
+    cv::Point2d A( ptsA(0,kl), ptsA(1,kl) );
+    cv::Point2d B( ptsB(0,kl), ptsB(1,kl) );
+
+    cv::circle( outImg, A, 2,color_marker, -1 );
+    cv::circle( outImg, B+cv::Point2d(imA.cols,0), 2,color_marker, -1 );
+
+    cv::line( outImg,  A, B+cv::Point2d(imA.cols,0), color_line );
+
+    if( annotate_pts )
+    {
+      cv::putText( outImg, to_string(kl), A, cv::FONT_HERSHEY_SIMPLEX, 0.3, color_marker, 1 );
+      cv::putText( outImg, to_string(kl), B+cv::Point2d(imA.cols,0), cv::FONT_HERSHEY_SIMPLEX, 0.3, color_marker, 1 );
+    }
+  }
+
+
+  #if 0
+  cv::Mat status = cv::Mat(150, outImg.cols, CV_8UC3, cv::Scalar(0,0,0) );
+  // cv::putText( status, to_string(idxA).c_str(), cv::Point(10,30), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 2 );
+  // cv::putText( status, to_string(idxB).c_str(), cv::Point(imA.cols+10,30), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 2 );
+  cv::putText( status, "marked # pts: "+to_string(count), cv::Point(10,60), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 1.5 );
+
+
+  // put msg in status image
+  if( msg.length() > 0 ) { // ':' separated. Each will go in new line
+      std::vector<std::string> msg_tokens = split(msg, ';');
+      for( int h=0 ; h<msg_tokens.size() ; h++ )
+          cv::putText( status, msg_tokens[h].c_str(), cv::Point(10,80+20*h), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 1.5 );
+  }
+
+
+  cv::vconcat( outImg, status, dst );
+  #endif
+
+  append_status_image( outImg, "marked # pts: "+to_string(count) + ";;" + msg, 1.0 );
+  dst = outImg;
+
+}
+
+
 cv::Scalar MiscUtils::getFalseColor( float f )
 {
     cv::Mat colormap_gray = cv::Mat::zeros( 1, 256, CV_8UC1 );
@@ -927,6 +1091,102 @@ void MiscUtils::plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA, int i
 }
 
 
+
+void MiscUtils::plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA,
+                      const cv::Mat& imB, const MatrixXd& ptsB,
+                      cv::Mat& dst,
+                      short color_map_direction,
+                      const string& msg
+                     )
+{
+  // ptsA : ptsB : 2xN or 3xN
+  assert( color_map_direction >= 0 && color_map_direction<=3 );
+  assert( imA.rows == imB.rows && imA.rows > 0  );
+  assert( imA.cols == imB.cols && imA.cols > 0  );
+  assert( ptsA.cols() == ptsB.cols() && ptsA.cols() > 0 );
+  // assert( mask.size() == ptsA.cols() );
+
+
+  // make colormap
+  cv::Mat colormap_gray = cv::Mat::zeros( 1, 256, CV_8UC1 );
+  for( int i=0 ; i<256; i++ ) colormap_gray.at<uchar>(0,i) = i;
+  cv::Mat colormap_color;
+  cv::applyColorMap(colormap_gray, colormap_color, cv::COLORMAP_HSV);
+
+
+
+  cv::Mat outImg_;
+  cv::hconcat(imA, imB, outImg_);
+
+  cv::Mat outImg;
+  if( outImg_.channels() == 3 )
+      outImg = outImg_;
+  else
+      cv::cvtColor( outImg_, outImg, CV_GRAY2BGR );
+
+
+
+
+
+  // loop over all points
+  int count = 0;
+  for( int kl=0 ; kl<ptsA.cols() ; kl++ )
+  {
+    // if( mask(kl) == 0 )
+    //   continue;
+
+    count++;
+    cv::Point2d A( ptsA(0,kl), ptsA(1,kl) );
+    cv::Point2d B( ptsB(0,kl), ptsB(1,kl) );
+
+    int coloridx;
+    if( color_map_direction==0 ) coloridx = (int) (ptsA(0,kl)/imA.cols*256.); // horizontal-gradiant
+    if( color_map_direction==1 ) coloridx = (int) (ptsA(1,kl)/imA.rows*256.); // vertical-gradiant
+    if( color_map_direction==2 ) coloridx = (int) (   ( ptsA(0,kl) + ptsA(1,kl) ) / (imA.rows + imA.cols )*256.  ); // manhattan-gradiant
+    if( color_map_direction==3 ) coloridx = (int) (   abs( ptsA(0,kl) - imA.rows/2. + ptsA(1,kl) - imA.cols/2. ) / (imA.rows/2. + imA.cols/2. )*256.  ); // image centered manhattan-gradiant
+    if( coloridx<0 || coloridx>255 ) coloridx=0;
+    cv::Vec3b f = colormap_color.at<cv::Vec3b>(0,  (int)coloridx );
+    cv::Scalar color_marker = cv::Scalar(f[0],f[1],f[2]);
+
+    cv::circle( outImg, A, 2,color_marker, -1 );
+    cv::circle( outImg, B+cv::Point2d(imA.cols,0), 2,color_marker, -1 );
+
+    /*
+    cv::line( outImg,  A, B+cv::Point2d(imA.cols,0), color_line );
+
+    if( annotate_pts )
+    {
+      cv::putText( outImg, to_string(kl), A, cv::FONT_HERSHEY_SIMPLEX, 0.3, color_marker, 1 );
+      cv::putText( outImg, to_string(kl), B+cv::Point2d(imA.cols,0), cv::FONT_HERSHEY_SIMPLEX, 0.3, color_marker, 1 );
+    }
+    */
+  }
+
+
+  #if 0 //todo remove
+  cv::Mat status = cv::Mat(150, outImg.cols, CV_8UC3, cv::Scalar(0,0,0) );
+  cv::putText( status, to_string(idxA).c_str(), cv::Point(10,30), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 2 );
+  cv::putText( status, to_string(idxB).c_str(), cv::Point(imA.cols+10,30), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 2 );
+  cv::putText( status, "marked # pts: "+to_string(count), cv::Point(10,60), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255,255,255), 1.5 );
+
+
+  // put msg in status image
+  if( msg.length() > 0 ) { // ':' separated. Each will go in new line
+      std::vector<std::string> msg_tokens = split(msg, ';');
+      for( int h=0 ; h<msg_tokens.size() ; h++ )
+          cv::putText( status, msg_tokens[h].c_str(), cv::Point(10,80+20*h), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255,255,255), 1.5 );
+  }
+
+
+  cv::vconcat( outImg, status, dst );
+  #endif
+
+  append_status_image( outImg, "marked # pts: "+to_string(count) + ";" + msg, 1.0 );
+  dst = outImg;
+
+}
+
+
 // append a status image . ';' separated
 void MiscUtils::append_status_image( cv::Mat& im, const string& msg, float txt_size, cv::Scalar bg_color, cv::Scalar txt_color, float line_thinkness )
 {
@@ -934,7 +1194,9 @@ void MiscUtils::append_status_image( cv::Mat& im, const string& msg, float txt_s
     txt_size = (txt_size<0.1 || txt_size>2)?0.4:txt_size;
 
     std::vector<std::string> msg_tokens = split(msg, ';');
-    int status_im_height = 50+20*msg_tokens.size();
+    const int height_per_line = 30 * txt_size;
+    const int top_padding = height_per_line;
+    int status_im_height = top_padding+height_per_line*(int)msg_tokens.size();
 
     cv::Mat status;
     if( is_single_channel )
@@ -944,7 +1206,7 @@ void MiscUtils::append_status_image( cv::Mat& im, const string& msg, float txt_s
 
 
     for( int h=0 ; h<msg_tokens.size() ; h++ )
-        cv::putText( status, msg_tokens[h].c_str(), cv::Point(10,20+20*h),
+        cv::putText( status, msg_tokens[h].c_str(), cv::Point(10,height_per_line*h+height_per_line),
                 cv::FONT_HERSHEY_SIMPLEX,
                 txt_size, txt_color, line_thinkness );
 

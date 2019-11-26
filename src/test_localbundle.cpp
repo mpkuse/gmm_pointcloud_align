@@ -19,9 +19,20 @@ using namespace Eigen;
 #include "LocalBundle.h"
 #include "utils/ElapsedTime.h"
 
+// Camodocal
+#include "camodocal/camera_models/Camera.h"
+#include "camodocal/camera_models/CameraFactory.h"
+
 int main()
 {
     cout << "Hello\n";
+
+    #if 1
+    // load camodocam camera
+    camodocal::CameraPtr cam = camodocal::CameraFactory::instance()->generateCameraFromYamlFile("/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/camera.yaml");
+    if( !cam ) { cout << "Cannot load camera\n"; exit(2); }
+    cout << cam->parametersToString() << endl;
+    #endif
 
     #if 0
     Matrix4d tmp = Matrix4d::Identity();
@@ -47,4 +58,6 @@ int main()
     cout << tp.toc() << endl;
 
     bundle.retrive_optimized_pose( 0, 0, 1, 0 );
+    bundle.reprojection_test(cam);
+    bundle.reprojection_error( cam );
 }

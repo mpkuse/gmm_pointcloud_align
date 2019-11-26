@@ -59,6 +59,13 @@ public:
     // given an input eigen matrix of eithen 2xN or 3xN make this into vector<Point2f>.
     static void eigen_2_point2f( const MatrixXd& inp, std::vector<cv::Point2f>& p );
 
+    // given a vector of Point3f will return a 3xN or 4xN matrix (if make_homogeneous=true).
+    static void point3f_2_eigen( const std::vector<cv::Point3f>& p, MatrixXd& dst, bool make_homogeneous=true );
+
+    // given an input eigen matrix of eithen 2xN or 3xN make this into vector<Point2f>.
+    static void eigen_2_point3f( const MatrixXd& inp, std::vector<cv::Point3f>& p );
+
+
     // Given multiple point sets `mats` each of sizes 3xN1, 3xN2, .... 3xNn and corresponding valids gather everything into dst
     // eg. say the valids look  like [ [11101], [000101111], [11111111100] ] will return only 3d points with valids as 1
     static void gather( const vector<MatrixXd>& mats, const vector<  vector<bool> >& valids, MatrixXd& dst );
@@ -71,6 +78,9 @@ public:
 
     static int total_true( const vector<bool>& V );
     static int total_positives( const vector<uchar>& V );
+    static vector<bool> vector_of_bool_AND( const vector<bool>& A, const vector<bool>& B );
+    static vector<uchar> vector_of_uchar_AND( const vector<uchar>& A, const vector<uchar>& B );
+
 
     static VectorXd to_eigen( const vector<uchar>& V );
 
@@ -154,6 +164,15 @@ public:
                           const string& msg=string("N.A")
                          );
 
+     static void plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA,
+                           const cv::Mat& imB, const MatrixXd& ptsB,
+                           cv::Mat& dst,
+                           const cv::Scalar& color_marker,
+                           const string& msg=string("N.A"),
+                           const cv::Scalar& color_line=cv::Scalar(0,255,0),
+                           bool annotate_pts=false
+                          );
+
 
      // nearly same as the above, but will color every co-ordinate with different color
      // color_map_direction : 0 ==> // horizontal-gradiant
@@ -166,6 +185,13 @@ public:
                            short color_map_direction,
                            const string& msg=string("N.A")
                           );
+
+      static void plot_point_pair( const cv::Mat& imA, const MatrixXd& ptsA,
+                            const cv::Mat& imB, const MatrixXd& ptsB,
+                            cv::Mat& dst,
+                            short color_map_direction,
+                            const string& msg=string("N.A")
+                           );
 
     //------------------------------- Plot Matchings on image pair -------------------------//
 
