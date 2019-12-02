@@ -461,9 +461,10 @@ bool image_correspondences( const json& STATE, XLoader& xloader,
     // cout << TermColor::GREEN() << "=== GMS Matcher for idx_a="<< idx_a << ", idx_b=" << idx_b << TermColor::RESET() << endl;
     elp.tic();
     MatrixXd gms_uv_a, gms_uv_b;
-    cout << "[main]attempt gms_point_feature_matches\n";
+    cout << "[image_correspondences]attempt gms_point_feature_matches\n";
     StaticPointFeatureMatching::gms_point_feature_matches( image_a, image_b, gms_uv_a, gms_uv_b );
-    cout << "[main]attempt refine_and_sparsify_matches\n";
+    cout << "gms_uv_a.cols() =" << gms_uv_a.cols() << endl;
+    cout << "[image_correspondences]attempt refine_and_sparsify_matches\n";
     StaticPointFeatureMatching::refine_and_sparsify_matches( image_a, image_b, gms_uv_a, gms_uv_b, uv_a, uv_b );
     cout << TermColor::BLUE() << "StaticPointFeatureMatching::gms_point_feature_matches returned in " << elp.toc_milli() << " ms\n" << TermColor::RESET();
 

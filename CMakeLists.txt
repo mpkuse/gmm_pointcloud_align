@@ -416,6 +416,17 @@ add_executable( test_monocular_depth
 
 
 
+            add_executable( test_surf
+              src/test_surf.cpp
+              #${KuseUtils}
+              #src/LocalBundle.cpp
+              #src/EdgeAlignment.cpp
+              )
+
+            target_link_libraries( test_surf
+                   ${catkin_LIBRARIES}
+                   ${OpenCV_LIBS}
+                 )
 
 endif(COMPILE_UNIT_TEST)
 unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
@@ -430,6 +441,7 @@ add_executable( local_ptcloud2
     src/PoseComputation.cpp
     src/Triangulation.cpp
     src/LocalBundle.cpp
+    src/EdgeAlignment.cpp
     )
 
 target_link_libraries( local_ptcloud2
@@ -452,7 +464,9 @@ target_link_libraries( test_precise_gms
 add_executable( test_localbundle
   src/test_localbundle.cpp
   ${KuseUtils}
+  src/EdgeAlignment.cpp
   src/LocalBundle.cpp
+  ${CamodocalCameraModelSources}
   )
 
 target_link_libraries( test_localbundle
@@ -471,6 +485,8 @@ target_link_libraries( test_localbundle
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
       )
+
+
 
 
 ## Rename C++ executable without prefix

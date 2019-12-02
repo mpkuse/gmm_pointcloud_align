@@ -54,10 +54,32 @@ int main()
     bundle.print_inputs_info();
 
     ElapsedTime tp("Bundle Solver");
-    bundle.solve();
-    cout << tp.toc() << endl;
+    // bundle.solve();
+    bundle.solve_ea(cam, false);
+    cout << "[main]" <<  tp.toc() << endl;
 
     bundle.retrive_optimized_pose( 0, 0, 1, 0 );
+
+    #if 0
     bundle.reprojection_test(cam);
     bundle.reprojection_error( cam );
+    #else
+    int n_im_pairs = bundle.get_image_pairs_len(0,1);
+    for(int h=0 ; h<n_im_pairs; h++ )
+    {
+        cv::Mat _dst_observed_correspondence_, _dst_image_a, _dst_image_b;
+        bundle.reprojection_debug_images_for_this_image_pair( cam, h,
+            _dst_observed_correspondence_, _dst_image_a, _dst_image_b );
+
+        MiscUtils::imshow( "_dst_observed_correspondence_", _dst_observed_correspondence_ , 0.5 );
+        MiscUtils::imshow( "_dst_image_a", _dst_image_a , 0.5 );
+        MiscUtils::imshow( "_dst_image_b", _dst_image_b , 0.5 );
+        cv::waitKey(0);
+    }
+    #endif
+
+    bundle.edgealignment_debug_images_to_disk( "/app/tmp/hyp_x_");
+    bundle.debug_print_initial_and_final_poses( "/app/tmp/hyp_x_" );
+
+
 }

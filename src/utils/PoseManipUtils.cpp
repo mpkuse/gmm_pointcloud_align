@@ -86,7 +86,7 @@ void PoseManipUtils::raw_xyzw_to_eigenmat( const Vector4d& quat, const Vector3d&
 
 void PoseManipUtils::eigenmat_to_raw_xyzw( const Matrix4d& T, double * quat, double * t)
 {
-  assert( T(3,3) == 1 );
+  assert( abs(T(3,3) - 1.0) < 1.0e-7 );
   Quaterniond q( T.topLeftCorner<3,3>() );
   quat[3] = q.w();
   quat[0] = q.x();

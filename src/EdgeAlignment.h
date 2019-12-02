@@ -40,23 +40,30 @@ using namespace Eigen;
 class EdgeAlignment
 {
 public:
-    EdgeAlignment(const camodocal::CameraPtr _cam, const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr):
-            cam(_cam), im_ref(_im_ref), im_curr(_im_curr),  depth_curr( _depth_curr)
-    {
-        cout << "~~~~\n~~~~[EdgeAlignment::EdgeAlignment]~~~~\n~~~~\n";
-        cout << "\tim_ref : " << MiscUtils::cvmat_info( im_ref ) << endl;
-        cout << "\tim_curr: " << MiscUtils::cvmat_info( im_curr ) << endl;
-        cout << "\tdepth_curr: " << MiscUtils::cvmat_info( depth_curr ) << endl;
-        // TODO Check the data types atleast
-    }
+    EdgeAlignment(const camodocal::CameraPtr _cam, const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr);
 
-    void solve( Matrix4d& initial_guess____ref_T_curr );
+    bool solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d& optimized__ref_T_curr );
+
+    void set_make_representation_image()   {  make_representation_image = true;  }
+    void unset_make_representation_image() {  make_representation_image = false; }
+    const cv::Mat get_representation_image() {
+        if( is_representation_image_ready == false ) {
+            cout << "[EdgeAlignment::get_representation_image] THROW You are requesting to the representation image. It was not created. To create it do set_make_representation_image() before you call the solve()\n";
+            throw "ERROR";
+        }
+        return representation_image;
+
+    }
 
 private:
     const camodocal::CameraPtr cam ;
     const cv::Mat im_ref;               // distance transform will be made with edgemap of this image
     const cv::Mat im_curr, depth_curr; //3d points will be made from curr
 
+    // Representation image
+    bool make_representation_image = false;
+    cv::Mat representation_image;
+    bool is_representation_image_ready = false;
 
 
 private:
@@ -112,7 +119,8 @@ public:
     template <typename T>
     bool operator()( const T* const quat, const T* const t, T* residue ) const {
         // b_quat_a, b_t_a to b_T_a
-        Eigen::Quaternion<T> eigen_q( quat[0], quat[1], quat[2], quat[3] );
+        // Eigen::Quaternion<T> eigen_q( quat[0], quat[1], quat[2], quat[3] );
+        Eigen::Quaternion<T> eigen_q( quat[3], quat[0], quat[1], quat[2] );
         Eigen::Matrix<T,4,4> b_T_a = Eigen::Matrix<T,4,4>::Zero();
         b_T_a.topLeftCorner(3,3) = eigen_q.toRotationMatrix();
         b_T_a(0,3) = t[0];
@@ -141,17 +149,26 @@ public:
 
 
         // Perspective-Projection and scaling with K.
-        if( b_X(2) < T(0.01) && b_X(2) > T(-0.01) )
+        if( b_X(2) < T(0.001) && b_X(2) > T(-0.001) )
             return false;
         T _u = T(fx) * b_X(0)/b_X(2) + T(cx);
         T _v = T(fy) * b_X(1)/b_X(2) + T(cy);
 
+        // if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(240) )
+            // return false;
 
-        // double __r;
-        interp_a.Evaluate( _u, _v, &residue[0] );
-        // residue[0] = _u*_u + _v*_v;
+        interp_a.Evaluate( _u, _v, &residue[0] );  //original
 
-        // residue[0] = b_X(0) - t[0] ;//+ b_X(1)*b_X(1); //T(__r) ;
+        #if 0
+        // switch constraint
+        T lambda = T(1.0);
+        T delta = residue[0] * residue[0];
+        T s = lambda / ( T(1.0) + delta );
+        residue[0] *= s;
+        residue[1] = lambda * ( T(1.0) - s );
+        #endif
+
+
         return true;
     }
 

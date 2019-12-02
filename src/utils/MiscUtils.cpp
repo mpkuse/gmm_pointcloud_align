@@ -31,6 +31,16 @@ string MiscUtils::cvmat_info( const cv::Mat& mat )
     return buffer.str();
 }
 
+string MiscUtils::cvmat_minmax_info( const cv::Mat& mat )
+{
+    double min_dst, max_dst;
+    cv::minMaxLoc(mat, &min_dst, &max_dst);
+
+    std::stringstream buffer;
+    buffer << "(min,max)=(" << min_dst << "," << max_dst << ")";
+    return buffer.str();
+}
+
 string MiscUtils::imgmsg_info(const sensor_msgs::ImageConstPtr &img_msg)
 {
     std::stringstream buffer;
