@@ -488,3 +488,30 @@ Eigen::MatrixXd EdgeAlignment::reproject( const Eigen::MatrixXd& a_X, const Eige
 
 
 }
+
+
+
+
+bool EdgeAlignment::save_to_disk( const string PREFIX, const Matrix4d& initial_guess____ref_T_curr ) const
+{
+    cout << TermColor::iWHITE() << "[EdgeAlignment::save_to_disk] PREFIX=" << PREFIX << TermColor::RESET() << endl;
+
+    // save images
+    cv::imwrite( PREFIX+"_im_ref.jpg", im_ref );
+    cv::imwrite( PREFIX+"_im_curr.jpg", im_curr );
+
+    // save depth
+    cv::FileStorage storage(PREFIX+"_depth_curr.yaml", cv::FileStorage::WRITE);
+    storage << "depth_curr" << depth_curr;
+
+
+    // save initial_guess____ref_T_curr
+    cv::Mat initial_guess____ref_T_curr__opencv;
+    cv::eigen2cv( initial_guess____ref_T_curr, initial_guess____ref_T_curr__opencv );
+    storage << "initial_guess____ref_T_curr" << initial_guess____ref_T_curr__opencv ;
+
+    storage.release();
+    cout << TermColor::iWHITE() << "[EdgeAlignment::save_to_disk] DONE" << TermColor::RESET() << endl;
+
+    return true;
+}

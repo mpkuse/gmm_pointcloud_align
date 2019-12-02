@@ -596,6 +596,14 @@ void LocalBundle::print_inputs_info() const
         else
             cout << "(n_images=" << seq_x_images.at( it->first ).size() << ")";
 
+
+        if( seq_x_depthmap.count(it->first) == 0 )
+            cout << "(n_depth_images=0)";
+        else
+            cout << "(n_depth_images=" << seq_x_depthmap.at( it->first ).size() << ")";
+
+
+
         cout << "\n";
         cout << char_list[i] << 0 << "  , " << char_list[i] << 1 << " ... " << char_list[i] << it->second.size()-1 << endl;
         cout << *( seq_x_idx.at( it->first ).begin() ) << "," << *( seq_x_idx.at( it->first ).begin()+1 ) << " ... " << *( seq_x_idx.at( it->first ).rbegin() ) << endl;

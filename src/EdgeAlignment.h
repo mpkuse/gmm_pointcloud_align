@@ -55,6 +55,12 @@ public:
 
     }
 
+    // save the things needed to recreate this to disk.
+    //  will save im_ref, im_curr, depth_curr and the initial_guess____ref_T_curr
+    bool save_to_disk( const string PREFIX, const Matrix4d& initial_guess____ref_T_curr ) const;
+
+
+
 private:
     const camodocal::CameraPtr cam ;
     const cv::Mat im_ref;               // distance transform will be made with edgemap of this image

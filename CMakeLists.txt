@@ -486,6 +486,17 @@ target_link_libraries( test_localbundle
         ${OpenCV_LIBS}
       )
 
+  add_executable( test_edge_alignment_2
+    src/test_edge_alignment_2.cpp
+    ${KuseUtils}
+    src/LocalBundle.cpp
+    src/EdgeAlignment.cpp
+    )
+
+  target_link_libraries( test_edge_alignment_2
+         ${catkin_LIBRARIES}
+         ${OpenCV_LIBS}
+       )
 
 
 
