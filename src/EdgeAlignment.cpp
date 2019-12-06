@@ -20,6 +20,9 @@ EdgeAlignment::EdgeAlignment(const camodocal::CameraPtr _cam, const cv::Mat _im_
 
 // #define __EdgeAlignment__solve_imshow( msg ) msg;
 #define __EdgeAlignment__solve_imshow( msg ) ;
+
+// #define __EdgeAlignment__solve_profiling( msg ) msg;
+#define __EdgeAlignment__solve_profiling( msg ) ;
 bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d& out_optimized__ref_T_curr )
 {
     //----- distance transform will be made with edgemap of reference image
@@ -29,8 +32,10 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     Eigen::MatrixXd e_disTrans;
     cv::cv2eigen( disTrans, e_disTrans );
 
+
+    __EdgeAlignment__solve_profiling(
+    cout << TermColor::uGREEN() <<  t_distanceTransform.toc() << "\n" << TermColor::RESET(); )
     __EdgeAlignment__solve(
-    cout << TermColor::uGREEN() <<  t_distanceTransform.toc() << "\t" << TermColor::RESET();
     std::cout << "disTrans: " << MiscUtils::cvmat_info( disTrans ) << "\t" << MiscUtils::cvmat_minmax_info( disTrans ) << endl;
     )
 
@@ -52,9 +57,14 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
 
      //---- 3d points will be made from curr. Only at edges
      ElapsedTime t_3dpts( "3D edge-points of curr image" );
-     MatrixXd cX = get_cX_at_edge_pts( im_curr, depth_curr ); //cX will be 4xN
-     __EdgeAlignment__solve(
+     cv::Mat im_curr_edgemap, im_curr_selected_pts_edgemap;
+     MatrixXd im_curr_uv;
+     MatrixXd cX = get_cX_at_edge_pts( im_curr, depth_curr, im_curr_edgemap, im_curr_selected_pts_edgemap ); //cX will be 4xN
+
+    __EdgeAlignment__solve_profiling(
      cout << TermColor::uGREEN() << t_3dpts.toc() << TermColor::RESET() << "\ttotal edge pts=" << cX.cols() << endl;
+    )
+     __EdgeAlignment__solve(
      )
      __EdgeAlignment__solve_debug( cout << "cX(1st 10 cols)\n" << cX.leftCols(10) << endl; )
 
@@ -80,7 +90,7 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
      //---
      //---- Setup the optimization problem
      //---
-
+     ElapsedTime t_setup_opt_problem( "Setup Non-linear Least Squares Opt Problem");
     // Grid
     // cout << "e_disTrans.shape = " << e_disTrans.rows() << ", " << e_disTrans.cols() << endl;
     ceres::Grid2D<double,1> grid( e_disTrans.data(), 0, e_disTrans.cols(), 0, e_disTrans.rows() );
@@ -114,7 +124,7 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     auto robust_loss = new ceres::CauchyLoss(.2);
 
     VectorXi edge_pt_used = VectorXi::Zero( cX.cols() );
-    for( int i=0 ; i< cX.cols() ; i+=30 )
+    for( int i=0 ; i< cX.cols() ; i++) // 30 )
     {
         // ceres::CostFunction * cost_function = EAResidue::Create( K, a_X.col(i), interpolated_imb_disTrans);
 
@@ -130,6 +140,7 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     // ceres::LocalParameterization * quaternion_parameterization = new ceres::QuaternionParameterization;
     problem.SetParameterization( ref_quat_curr, eigenquaternion_parameterization );
 
+    __EdgeAlignment__solve_profiling( cout << TermColor::uGREEN() << t_setup_opt_problem.toc() << TermColor::RESET() << endl; )
 
     // Run
     ceres::Solver::Options options;
@@ -141,7 +152,8 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     ceres::Solver::Summary summary;
     ceres::Solve( options, &problem, &summary );
     __EdgeAlignment__solve_debug( std::cout << summary.FullReport() << "\n"; )
-    __EdgeAlignment__solve( std::cout << summary.BriefReport() << endl;
+
+    __EdgeAlignment__solve_profiling( std::cout << summary.BriefReport() << endl;
     cout << TermColor::uGREEN() << t_easolver.toc() << TermColor::RESET() << endl; )
 
     // Retrive final
@@ -150,6 +162,7 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     cout << "Initial Guess : " << PoseManipUtils::prettyprintMatrix4d( initial_guess____ref_T_curr ) << endl;
     cout << "Final Guess : " << PoseManipUtils::prettyprintMatrix4d( ref_T_curr_optvar ) << endl; )
 
+    out_summary = summary;
 
     __EdgeAlignment__solve_imshow(
     MatrixXd ref_uv_final = reproject( cX, ref_T_curr_optvar );
@@ -187,12 +200,15 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
         //
         cv::Mat im_curr_resized_1, im_curr_resized;
         cv::resize(im_curr, im_curr_resized_1, cv::Size(), 0.5, 0.5 );
-        if( im_curr_resized_1.channels() == 1 )
-            cv::cvtColor( im_curr_resized_1, im_curr_resized, cv::COLOR_GRAY2BGR );
-        else
-            im_curr_resized_1.copyTo(im_curr_resized);
-        MiscUtils::append_status_image( im_curr_resized, "^^im_curr", .3  );
 
+        cv::Mat im_curr_edgemap_resized, im_curr_selected_pts_edgemap_resized ;
+        cv::resize(im_curr_edgemap, im_curr_edgemap_resized, cv::Size(), 0.5, 0.5 ); // all edges
+        cv::resize(im_curr_selected_pts_edgemap, im_curr_selected_pts_edgemap_resized, cv::Size(), 0.5, 0.5 ); //selected edges
+
+
+        MiscUtils::mask_overlay( im_curr_resized_1, im_curr_edgemap_resized, im_curr_resized, cv::Scalar(0,255,255) );
+        MiscUtils::mask_overlay( im_curr_resized, im_curr_selected_pts_edgemap_resized, cv::Scalar(0,0,255) );
+        MiscUtils::append_status_image( im_curr_resized, "^^im_curr, all edge-pts in yellow, selected edge-pts ("+ to_string(cX.cols()) +") in red", .3  );
 
 
 
@@ -207,21 +223,22 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
         #if 0 // make this to zero to mark points which were used for residue and which were not used. 1 will plot all the points in same color
         MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, cv::Scalar(0,0,255), false );
         #else
-        vector<cv::Scalar> per_pt_color;
-        vector<bool> per_pt_sta;
-        for( int h=0 ; h<ref_uv.cols() ; h++ ) {
-            if( edge_pt_used(h) > 0 ) {
-                per_pt_color.push_back( cv::Scalar(0,0,255) );
-                per_pt_sta.push_back(true);
-            }
-            else {
-                per_pt_color.push_back( cv::Scalar(0,255,255) );
-                per_pt_sta.push_back(false);
-            }
-        }
+        // vector<cv::Scalar> per_pt_color;
+        // vector<bool> per_pt_sta;
+        // for( int h=0 ; h<ref_uv.cols() ; h++ ) {
+        //     if( edge_pt_used(h) > 0 ) {
+        //         per_pt_color.push_back( cv::Scalar(0,0,255) );
+        //         per_pt_sta.push_back(true);
+        //     }
+        //     else {
+        //         per_pt_color.push_back( cv::Scalar(0,255,255) );
+        //         per_pt_sta.push_back(false);
+        //     }
+        // }
         // MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, per_pt_color, 1.0 );
-        MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, cv::Scalar(0,0,255), false, "all edgepts" );
-        MiscUtils::plot_point_sets_masked( dst_2, ref_uv, per_pt_sta, dst_2, cv::Scalar(0,255,255), false, ";edgepts used for residue computations" );
+        MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, cv::Scalar(0,0,255), false, "" );
+        // MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, cv::Scalar(0,0,255), false, "all edgepts" );
+        // MiscUtils::plot_point_sets_masked( dst_2, ref_uv, per_pt_sta, dst_2, cv::Scalar(0,255,255), false, ";edgepts used for residue computations" );
         #endif
 
 
@@ -289,6 +306,245 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
 
 }
 
+
+bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
+    const Matrix4d& imu_T_cam, const Matrix4d& vio_w_T_ref, const Matrix4d& vio_w_T_curr,
+    Matrix4d& optimized__ref_T_curr  )
+{
+    //----- distance transform will be made with edgemap of reference image
+    cv::Mat disTrans, edge_map;
+    get_distance_transform( im_ref, disTrans, edge_map );
+    Eigen::MatrixXd e_disTrans;
+    cv::cv2eigen( disTrans, e_disTrans );
+
+    cv::imshow( "edge_map of ref image", edge_map );
+
+
+
+
+    //---- 3d points of current represented in curr-camera frame-of-ref
+    cv::Mat im_curr_edgemap, im_curr_selected_pts_edgemap;
+    // MatrixXd im_curr_uv;
+    MatrixXd cX = get_cX_at_edge_pts( im_curr, depth_curr, im_curr_edgemap, im_curr_selected_pts_edgemap ); //cX will be 4xN
+    cout << "cX.shape=" << cX.rows() << "x" << cX.cols() << endl;
+
+
+    //----
+    //---- Setup optimization problem
+    //----
+
+    //--make grid
+    ceres::Grid2D<double,1> grid( e_disTrans.data(), 0, e_disTrans.cols(), 0, e_disTrans.rows() );
+    ceres::BiCubicInterpolator< ceres::Grid2D<double,1> > interpolated_imb_disTrans( grid );
+
+
+    //--optimization variables
+    //  rel_yaw of imu, rel_tx of imu, rel_ty of imu
+    double refimu_ypr_currimu[3], refimu_tr_currimu[3]; //only yaw and tx,ty,tz are optimization variables
+
+    //--set opt variables to values
+    //      i) yaw, tx, ty, tz from initial guess; ii) pitch and roll from vio
+    Matrix4d initial_guess____refimu_T_currimu =  imu_T_cam * initial_guess____ref_T_curr * imu_T_cam.inverse();
+    Matrix4d vio_refimu_T_currimu = imu_T_cam * vio_w_T_ref.inverse() * vio_w_T_curr * imu_T_cam.inverse();
+
+    {
+        //i)
+        // yaw, tx, ty, tz from initial guess;
+        double _tmp_ypr[3], _tmp_tr[3];
+        PoseManipUtils::eigenmat_to_rawyprt( initial_guess____refimu_T_currimu,  _tmp_ypr, _tmp_tr );
+        refimu_ypr_currimu[0] = _tmp_ypr[0];
+        refimu_tr_currimu[0] = _tmp_tr[0];
+        refimu_tr_currimu[1] = _tmp_tr[1];
+        refimu_tr_currimu[2] = _tmp_tr[2];
+
+    }
+
+
+    {
+        //ii)
+        // pitch and roll from vio
+        double _tmp_ypr[3], _tmp_tr[3];
+        PoseManipUtils::eigenmat_to_rawyprt( vio_refimu_T_currimu,  _tmp_ypr, _tmp_tr );
+        refimu_ypr_currimu[1] = _tmp_ypr[1];
+        refimu_ypr_currimu[2] = _tmp_ypr[2];
+    }
+
+    cout << "[solve4DOF]refimu_ypr_currimu: ";
+    cout << "ypr=" << refimu_ypr_currimu[0] <<"," << refimu_ypr_currimu[1] <<", " <<  refimu_ypr_currimu[2] <<"\t";
+    cout << "t=" << refimu_tr_currimu[0] <<"," << refimu_tr_currimu[1] <<"," << refimu_tr_currimu[2] <<"\t";
+    cout << endl;
+
+
+    //-- camera params (needed for reprojection as grid is indexed by image co-ordinates)
+    std::vector<double> parameterVec;
+    cam->writeParameters( parameterVec );
+    double fx=parameterVec.at(4);
+    double fy=parameterVec.at(5);
+    double cx=parameterVec.at(6);
+    double cy=parameterVec.at(7);
+    cout << "[solve4DOF]";
+    cout << "fx=" << fx << "\t";
+    cout << "fy=" << fy << "\t";
+    cout << "cx=" << cx << "\t";
+    cout << "cy=" << cy << "\n";
+
+
+
+    #if 1
+    // plot on im_ref <--- PI( initial_guess * cX )
+    Matrix4d _tmp;
+    // PoseManipUtils::rawyprt_to_eigenmat( refimu_ypr_currimu, refimu_tr_currimu, _tmp  );
+    rawyprt_to_eigenmat( refimu_ypr_currimu[0], refimu_ypr_currimu[1],  refimu_ypr_currimu[2],
+                        refimu_tr_currimu[0], refimu_tr_currimu[1], refimu_tr_currimu[2],
+                        _tmp
+                    );
+    Matrix4d touse__ref_T_curr = imu_T_cam.inverse() * _tmp * imu_T_cam;
+    cout << "touse__ref_T_curr:  " << PoseManipUtils::prettyprintMatrix4d( touse__ref_T_curr ) << endl;
+    MatrixXd ref_uv = reproject( cX, touse__ref_T_curr );
+    cv::Mat dst;
+    MiscUtils::plot_point_sets( im_ref, ref_uv, dst, cv::Scalar(0,0,255), false );
+    MiscUtils::append_status_image( dst, "^^^im_ref;reprojecting 3d pts of im_curr on im_ref using initial guess of rel-pose;" );
+    MiscUtils::append_status_image( dst, "touse__ref_T_curr="+PoseManipUtils::prettyprintMatrix4d(touse__ref_T_curr) );
+    MiscUtils::append_status_image( dst, "touse__refimu_T_currimu="+PoseManipUtils::prettyprintMatrix4d(_tmp) );
+    cv::imshow( "(before)reprojecting 3d pts of curr on ref using initial guess of rel-pose", dst );
+    char key = cv::waitKey(0);
+
+    // exit(1);
+    #endif
+
+
+    #if 0 // interactive reprojection
+    {
+        double _tmp_ypr[3], _tmp_tr[3];
+        // PoseManipUtils::eigenmat_to_rawyprt( initial_guess____refimu_T_currimu,  _tmp_ypr, _tmp_tr );
+        for(int k=0;k<3;k++) {
+            _tmp_ypr[k] = refimu_ypr_currimu[k] ;
+            _tmp_tr[k] = refimu_tr_currimu[k] ;
+        }
+
+        while(1)
+        {
+            Matrix4d _tmp;
+            // PoseManipUtils::rawyprt_to_eigenmat( _tmp_ypr, _tmp_tr, _tmp  );
+            rawyprt_to_eigenmat( _tmp_ypr[0], _tmp_ypr[1],  _tmp_ypr[2],
+                                _tmp_tr[0], _tmp_tr[1], _tmp_tr[2],
+                                _tmp
+                            );
+            Matrix4d touse__ref_T_curr = imu_T_cam.inverse() * _tmp * imu_T_cam;
+
+
+            cout << "touse__ref_T_curr:  " << PoseManipUtils::prettyprintMatrix4d( touse__ref_T_curr ) << endl;
+            MatrixXd ref_uv = reproject( cX, touse__ref_T_curr );
+            cv::Mat dst;
+            MiscUtils::plot_point_sets( im_ref, ref_uv, dst, cv::Scalar(0,0,255), false );
+            MiscUtils::append_status_image( dst, "^^^im_ref;reprojecting 3d pts of im_curr on im_ref using initial guess of rel-pose;initial_guess____ref_T_curr="+PoseManipUtils::prettyprintMatrix4d(initial_guess____ref_T_curr) );
+            cv::imshow( "reprojecting 3d pts of curr on ref using initial guess of rel-pose", dst );
+            char key = cv::waitKey(0);
+            switch (key) {
+                case 'a':
+                _tmp_ypr[0] += 0.1;
+                break;
+                case 'z':
+                _tmp_ypr[0] -= 0.1;
+                break;
+                case 's':
+                _tmp_ypr[1] += 0.1;
+                break;
+                case 'x':
+                _tmp_ypr[1] -= 0.1;
+                break;
+                case 'd':
+                _tmp_ypr[2] += 0.1;
+                break;
+                case 'c':
+                _tmp_ypr[2] -= 0.1;
+                break;
+                case 'f':
+                _tmp_tr[0] += 0.1;
+                break;
+                case 'v':
+                _tmp_tr[0] -= 0.1;
+                break;
+                case 'g':
+                _tmp_tr[1] += 0.1;
+                break;
+                case 'b':
+                _tmp_tr[1] -= 0.1;
+                break;
+                case 'h':
+                _tmp_tr[2] += 0.1;
+                break;
+                case 'n':
+                _tmp_tr[2] -= 0.1;
+                break;
+                case 27:
+                goto DONE;
+                default:
+                cout << "invalid key ignore\n";
+            }
+
+        }
+    }
+    DONE:
+    cout << "\n[solve4DOF] EXIT\n";
+    exit(1);
+    #endif
+
+
+    //-- residue terms
+    ceres::Problem problem;
+    auto robust_loss = new ceres::CauchyLoss(.1);
+    for( int i=0 ; i<cX.cols() ; i++ )
+    {
+        ceres::CostFunction * cost_function = EA4DOFResidue::Create(
+            fx,fy,cx,cy,
+            cX(0,i),cX(1,i),cX(2,i),
+            interpolated_imb_disTrans,
+            refimu_ypr_currimu[1], refimu_ypr_currimu[2],
+            imu_T_cam, 1.0
+            );
+        problem.AddResidualBlock( cost_function, /*NULL*/ robust_loss, &refimu_ypr_currimu[0], &refimu_tr_currimu[0] );
+
+    }
+
+    //-- parameterization for angle (yaw)
+    ceres::LocalParameterization* angle_local_parameterization =
+                AngleLocalParameterization::Create();
+    problem.SetParameterization( &refimu_ypr_currimu[0], angle_local_parameterization );
+
+
+
+
+    //-- Solve
+    ceres::Solver::Options options;
+    options.minimizer_progress_to_stdout = true;
+    options.linear_solver_type = ceres::DENSE_QR;
+    ceres::Solver::Summary summary;
+    ceres::Solve( options, &problem, &summary );
+    std::cout << summary.FullReport();
+    // std::cout << summary.BriefReport();
+
+    //-- retrive solution
+    {
+    Matrix4d _tmp;
+    // PoseManipUtils::rawyprt_to_eigenmat( refimu_ypr_currimu, refimu_tr_currimu, _tmp  );
+    rawyprt_to_eigenmat( refimu_ypr_currimu[0], refimu_ypr_currimu[1],  refimu_ypr_currimu[2],
+                        refimu_tr_currimu[0], refimu_tr_currimu[1], refimu_tr_currimu[2],
+                        _tmp
+                    );
+    Matrix4d touse__ref_T_curr = imu_T_cam.inverse() * _tmp * imu_T_cam;
+    cout << "touse__ref_T_curr:  " << PoseManipUtils::prettyprintMatrix4d( touse__ref_T_curr ) << endl;
+    MatrixXd ref_uv = reproject( cX, touse__ref_T_curr );
+    cv::Mat dst;
+    MiscUtils::plot_point_sets( im_ref, ref_uv, dst, cv::Scalar(0,0,255), false );
+    MiscUtils::append_status_image( dst, "^^^im_ref;reprojecting 3d pts of im_curr on im_ref using initial guess of rel-pose;");
+    MiscUtils::append_status_image( dst, "touse__ref_T_curr="+PoseManipUtils::prettyprintMatrix4d(touse__ref_T_curr) );
+    MiscUtils::append_status_image( dst, "touse__refimu_T_currimu="+PoseManipUtils::prettyprintMatrix4d(_tmp) );
+    cv::imshow( "(after)reprojecting 3d pts of curr on ref using initial guess of rel-pose", dst );
+    char key = cv::waitKey(0);
+    }
+
+}
 
 
 //utils
@@ -386,9 +642,14 @@ void EdgeAlignment::get_distance_transform( const cv::Mat& input, cv::Mat& out_d
 
 
 
+// beware enabling this will also imshow
 // #define __EdgeAlignment__get_cX_at_edge_pts( msg ) msg;
 #define __EdgeAlignment__get_cX_at_edge_pts( msg ) ;
-MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat depth_map   )
+
+// #define __EdgeAlignment__get_cX_at_edge_pts_profiling( msg ) msg;
+#define __EdgeAlignment__get_cX_at_edge_pts_profiling( msg ) ;
+MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat depth_map,
+            cv::Mat& out_edgemap, cv::Mat& out_selected_pts_edgemap )
 {
     assert( !im.empty() && !depth_map.empty() );
     assert( im.rows == depth_map.rows && im.cols == depth_map.cols );
@@ -396,6 +657,7 @@ MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat dept
     assert( cam );
 
     //---- get edgemap with canny
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( ElapsedTime t_canny( "Canny Edge Detection"); )
     cv::Mat _blur, _gray;
     cv::GaussianBlur( im, _blur, cv::Size(3,3), 0, 0, cv::BORDER_DEFAULT );
     if( _blur.channels() == 1 )
@@ -412,34 +674,70 @@ MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat dept
     cv::Canny( _blur, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
     dst = cv::Scalar::all(0);
 
-    _blur.copyTo( dst, detected_edges);
+    _blur.copyTo( dst, detected_edges); // dest , mask
+    out_edgemap = detected_edges;
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( cout << TermColor::uGREEN() << t_canny.toc() << TermColor::RESET() << endl; )
 
-    __EdgeAlignment__get_cX_at_edge_pts( cv::imshow( "edge map get_cX", dst ); )
+    __EdgeAlignment__get_cX_at_edge_pts( cv::imshow( "edge map get_cX_dst", dst ); )
+    __EdgeAlignment__get_cX_at_edge_pts( cv::imshow( "edge map get_cX_detected_edges", detected_edges ); )
+
+    // cout << "dst:" << MiscUtils::cvmat_info( dst ) << "\t" << MiscUtils::cvmat_minmax_info( dst ) << endl;
+    // cout << "detected_edges:" << MiscUtils::cvmat_info( detected_edges ) << "\t" << MiscUtils::cvmat_minmax_info( detected_edges ) << endl;
+
+    //---- convolution of the edge mask to get weights
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( ElapsedTime t_conv("edge_importance_computation"); )
+    cv::Mat edge_importance;
+    cv::Mat kernel = cv::Mat::ones( 21, 21 , CV_32FC1 ) / (21*21);
+    cv::filter2D( detected_edges, edge_importance, CV_8UC1, kernel );
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( cout << TermColor::uGREEN() << t_conv.toc() << TermColor::RESET() << endl; )
+    __EdgeAlignment__get_cX_at_edge_pts(
+    cout << "edge_importance:" << MiscUtils::cvmat_info( edge_importance ) << "\t" << MiscUtils::cvmat_minmax_info( edge_importance ) << endl;
+    cv::Mat  edge_importance_false_color_map;
+    cv::applyColorMap( edge_importance, edge_importance_false_color_map, cv::COLORMAP_JET  );
+    cv::imshow( "edge map get_cX_edge_importance_false_color_map", edge_importance_false_color_map );
+    cv::imshow( "edge map get_cX_edge_importance", edge_importance );
+    )
+    out_selected_pts_edgemap = cv::Mat::zeros( out_edgemap.rows, out_edgemap.cols, CV_8UC1 );
 
 
-
-    //---- loop over all the pixels and process only at edge points
+    //---- loop over all the pixels and process only at edge pointst
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( ElapsedTime t_process_selected( "loop over all the pixels and process only at edge point"); )
     vector<cv::Point3f> vec_of_pt;
     for( int v=0 ; v< im.rows ; v++ )
     {
         for( int u=0 ; u<im.cols ; u++ )
         {
+
+            //skip because this is not an edge point
+            if( dst.at<uchar>(v,u) < 10 )
+                continue;
+
+
             float depth_val;
-            if( depth_map.type() == CV_16UC1 ) {
-                depth_val = .001 * depth_map.at<uint16_t>( v, u );
+            {
+                // Depth value computation
+                if( depth_map.type() == CV_16UC1 ) {
+                    depth_val = .001 * depth_map.at<uint16_t>( v, u );
+                }
+                else if( depth_map.type() == CV_32FC1 ) {
+                    // just assuming the depth values are in meters when CV_32FC1
+                    depth_val = depth_map.at<float>(v, u );
+                }
+                else {
+                    cout << "[EdgeAlignment::get_cX_at_edge_pts]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                    throw "[EdgeAlignment::get_cX_at_edge_pts]depth type is neighter of CV_16UC1 or CV_32FC1\n";
+                }
+                // cout << "at u=" << u << ", v=" << v << "\tdepth_val = " << depth_val << endl;
             }
-            else if( depth_map.type() == CV_32FC1 ) {
-                // just assuming the depth values are in meters when CV_32FC1
-                depth_val = depth_map.at<float>(v, u );
-            }
-            else {
-                cout << "[EdgeAlignment::get_cX_at_edge_pts]depth type is neighter of CV_16UC1 or CV_32FC1\n";
-                throw "[EdgeAlignment::get_cX_at_edge_pts]depth type is neighter of CV_16UC1 or CV_32FC1\n";
-            }
-            // cout << "at u=" << u << ", v=" << v << "\tdepth_val = " << depth_val << endl;
 
 
-            if( dst.at<uchar>(v,u) < 10 || depth_val < 0.5 || depth_val > 5. )
+            // skip based on depth far and near
+            if( depth_val < 0.5 || depth_val > 5. )
+                continue;
+
+
+            // skip points which are un-important (ones which have too many neighbours as edgepts).
+            if( edge_importance.at<uchar>(v,u) > 50 )
                 continue;
 
 
@@ -451,16 +749,41 @@ MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat dept
             pt.x = depth_val * _1P(0);
             pt.y = depth_val * _1P(1);
             pt.z = depth_val;
-
             vec_of_pt.push_back( pt );
+
+            out_selected_pts_edgemap.at<uchar>( v, u ) = 255;
+
         }
     }
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( cout << TermColor::uGREEN() << t_process_selected.toc() << TermColor::RESET() << endl; )
 
+
+    // --- randomly drop, only retain 1500
+    const int n_retain = 1000;
+    auto rng = std::default_random_engine {};
+    std::shuffle(std::begin(vec_of_pt), std::end(vec_of_pt), rng);
+
+    std::vector<cv::Point3f> slice_of_x;
+    if( vec_of_pt.size() > n_retain )
+        slice_of_x = std::vector<cv::Point3f>(vec_of_pt.begin(), vec_of_pt.begin() + n_retain );
+    else
+        slice_of_x = vec_of_pt;
+
+
+
+
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( ElapsedTime t_point3f_2_eigen( "point3f_2_eigen"); )
     MatrixXd cX;
-    MiscUtils::point3f_2_eigen( vec_of_pt, cX );
+    MiscUtils::point3f_2_eigen( slice_of_x, cX );
     __EdgeAlignment__get_cX_at_edge_pts(
+    cout << "vec_of_pt.size() = " << vec_of_pt.size() << endl;
+    cout << "slice_of_x.size() = " << slice_of_x.size() << endl;
     cout << "cX.shape=" << cX.rows() << "x" << cX.cols() << endl;
-    cout << "vec_of_pt.size() = " << vec_of_pt.size() << endl; )
+    )
+    __EdgeAlignment__get_cX_at_edge_pts_profiling( cout << TermColor::uGREEN() << t_point3f_2_eigen.toc() << TermColor::RESET() << endl; )
+
+
+
     return cX;
 
 }

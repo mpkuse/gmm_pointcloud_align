@@ -43,11 +43,24 @@ using namespace Eigen;
 const string CAM_PREFIX = "/app/catkin_ws/src/gmm_pointcloud_align/resources/local_bundle/";
 const string ED_DEBUG_DATA_PREFIX = "/app/tmp/cerebro/reprojections/";
 
-const int hyp_idx = 11;
-const int ea_idx  = 0;
-int main( )
+int main( int argc, char ** argv )
 {
-    cout << "Hello Edge Alignment 2: hyp_idx="<< hyp_idx << "\tea_idx=" << ea_idx << "\n";
+    int hyp_idx = 11;
+    int ea_idx  = 0;
+
+    cout << "argc=" << argc << endl;
+
+    if( argc != 3 ) {
+        cout << "Usage: " << argv[0] << " <hyp_idx:int> <ea_idx:int>\n";
+        exit(1);
+    }
+
+    hyp_idx = std::stoi( argv[1] );
+    ea_idx =  std::stoi( argv[2] );
+
+    cout << TermColor::bWHITE() <<  "-------------------------------------------------------\n";
+    cout << "---- Hello Edge Alignment 2: hyp_idx="<< hyp_idx << "\tea_idx=" << ea_idx << "\n";
+    cout << "-------------------------------------------------------\n" << TermColor::RESET();
 
     //   Load camodocal
     #if 1
@@ -88,11 +101,19 @@ int main( )
     cout << "depth_curr: " << MiscUtils::cvmat_info( depth_curr ) << endl;
     cout << "\t" << depth_curr_fname << endl;
 
+
+    cout << TermColor::bWHITE() <<  "-------------------------------------------------------\n";
+    cout << "---- Data Loading Done  : hyp_idx="<< hyp_idx << "\tea_idx=" << ea_idx << "\n";
+    cout << "-------------------------------------------------------\n" << TermColor::RESET();
+
     //   EA
     EdgeAlignment ealign( cam, im_ref, im_curr, depth_curr );
     ealign.set_make_representation_image();
     Matrix4d ref_T_curr_optvar;
+
+    ElapsedTime t_main_ea( "ealign.solve()");
     bool ea_status = ealign.solve( initial_guess____ref_T_curr, ref_T_curr_optvar );
+    cout << TermColor::uGREEN() << t_main_ea.toc() << TermColor::RESET() << endl;
 
 
     //   view debug image

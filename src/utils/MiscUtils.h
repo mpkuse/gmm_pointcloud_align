@@ -79,6 +79,8 @@ public:
 
     static int total_true( const vector<bool>& V );
     static int total_positives( const vector<uchar>& V );
+    
+    static vector<bool> filter_near_far( const VectorXd& dd, double near, double far );
     static vector<bool> vector_of_bool_AND( const vector<bool>& A, const vector<bool>& B );
     static vector<uchar> vector_of_uchar_AND( const vector<uchar>& A, const vector<uchar>& B );
 
@@ -139,6 +141,14 @@ public:
             const VectorXd& status, double show_only_greater_than_this_value,
             cv::Mat& dst,
             const cv::Scalar& color, bool enable_keypoint_annotation = true, const string msg = "" );
+
+
+
+    // Given an image and the mask (dimension same as the input image).
+    //      dst( i,j ) = color if mask(i,j) > 0
+    //      dst(i,j)   = untouched if mask(i,j) == 0
+    static void mask_overlay( const cv::Mat& src, const cv::Mat& mask, cv::Mat& dst, cv::Scalar color );
+    static void mask_overlay( cv::Mat& src, const cv::Mat& mask, cv::Scalar color );
     // END--------------------- Plot Keypoints on Image ----------------------------//
 
 

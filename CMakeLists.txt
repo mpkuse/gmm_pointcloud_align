@@ -428,76 +428,102 @@ add_executable( test_monocular_depth
                    ${OpenCV_LIBS}
                  )
 
+             add_executable( local_ptcloud2
+                 src/local_ptcloud2.cpp
+                 ${CamodocalCameraModelSources}
+                 ${KuseUtils}
+                 #src/SlicClustering.cpp
+                 #src/SurfelMap.cpp
+                 ${KaixuanUtils}
+                 src/PoseComputation.cpp
+                 src/Triangulation.cpp
+                 src/LocalBundle.cpp
+                 src/EdgeAlignment.cpp
+                 )
+
+             target_link_libraries( local_ptcloud2
+                         ${catkin_LIBRARIES}
+                         ${OpenCV_LIBS}
+                         #${THEIA_LIBRARIES}
+                       )
+
+             add_executable( test_precise_gms
+                 src/test_precise_gms.cpp
+                 ${KuseUtils}
+                 )
+
+             target_link_libraries( test_precise_gms
+                       ${catkin_LIBRARIES}
+                       ${OpenCV_LIBS}
+                     )
+
+
+             add_executable( test_localbundle
+               src/test_localbundle.cpp
+               ${KuseUtils}
+               src/EdgeAlignment.cpp
+               src/LocalBundle.cpp
+               ${CamodocalCameraModelSources}
+               )
+
+             target_link_libraries( test_localbundle
+                    ${catkin_LIBRARIES}
+                    ${OpenCV_LIBS}
+                  )
+
+
+              add_executable( test_edge_alignment
+                src/test_edge_alignment.cpp
+                ${KuseUtils}
+                src/LocalBundle.cpp
+                src/EdgeAlignment.cpp
+                )
+
+              target_link_libraries( test_edge_alignment
+                     ${catkin_LIBRARIES}
+                     ${OpenCV_LIBS}
+                   )
+
+               add_executable( test_edge_alignment_2
+                 src/test_edge_alignment_2.cpp
+                 ${KuseUtils}
+                 src/LocalBundle.cpp
+                 src/EdgeAlignment.cpp
+                 )
+
+              target_link_libraries( test_edge_alignment_2
+                      ${catkin_LIBRARIES}
+                      ${OpenCV_LIBS}
+                    )
+
 endif(COMPILE_UNIT_TEST)
 unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
 
-add_executable( local_ptcloud2
-    src/local_ptcloud2.cpp
-    ${CamodocalCameraModelSources}
-    ${KuseUtils}
-    #src/SlicClustering.cpp
-    #src/SurfelMap.cpp
-    ${KaixuanUtils}
-    src/PoseComputation.cpp
-    src/Triangulation.cpp
-    src/LocalBundle.cpp
-    src/EdgeAlignment.cpp
-    )
-
-target_link_libraries( local_ptcloud2
-            ${catkin_LIBRARIES}
-            ${OpenCV_LIBS}
-            #${THEIA_LIBRARIES}
-          )
-
-add_executable( test_precise_gms
-    src/test_precise_gms.cpp
-    ${KuseUtils}
-    )
-
-target_link_libraries( test_precise_gms
-          ${catkin_LIBRARIES}
-          ${OpenCV_LIBS}
-        )
 
 
-add_executable( test_localbundle
-  src/test_localbundle.cpp
+add_executable( test_lite_edge_alignment
+  src/test_lite_edge_alignment.cpp
   ${KuseUtils}
-  src/EdgeAlignment.cpp
   src/LocalBundle.cpp
-  ${CamodocalCameraModelSources}
+  src/EdgeAlignment.cpp
   )
 
-target_link_libraries( test_localbundle
+target_link_libraries( test_lite_edge_alignment
        ${catkin_LIBRARIES}
        ${OpenCV_LIBS}
      )
 
- add_executable( test_edge_alignment
-   src/test_edge_alignment.cpp
-   ${KuseUtils}
-   src/LocalBundle.cpp
-   src/EdgeAlignment.cpp
-   )
+ # add_executable( test_lite_gms
+ #  src/test_lite_gms.cpp
+ #  ${KuseUtils}
+ #  src/LocalBundle.cpp
+ #  src/EdgeAlignment.cpp
+ #  )
 
- target_link_libraries( test_edge_alignment
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-      )
-
-  add_executable( test_edge_alignment_2
-    src/test_edge_alignment_2.cpp
-    ${KuseUtils}
-    src/LocalBundle.cpp
-    src/EdgeAlignment.cpp
-    )
-
-  target_link_libraries( test_edge_alignment_2
-         ${catkin_LIBRARIES}
-         ${OpenCV_LIBS}
-       )
-
+# target_link_libraries( test_lite_gms
+#        ${catkin_LIBRARIES}
+#        ${OpenCV_LIBS}
+#      )
 
 
 ## Rename C++ executable without prefix
