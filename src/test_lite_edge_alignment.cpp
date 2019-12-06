@@ -186,14 +186,20 @@ int main( int argc, char ** argv )
     #if 1
     // 4DOF EA
     EdgeAlignment ealign( cam, im_ref, im_curr, depth_curr );
+    ealign.set_make_representation_image();
 
+    ElapsedTime t_main_ea( "ealign.solve()");
     Matrix4d ref_T_curr_optvar;
-    ealign.solve4DOF( initial_guess____ref_T_curr,
+    bool ea_4dof_status = ealign.solve4DOF( initial_guess____ref_T_curr,
         imu_T_cam, w_T_a, w_T_b,
         ref_T_curr_optvar );
+    cout << TermColor::uGREEN() << t_main_ea.toc() << TermColor::RESET() << endl;
+    cout << "[main] status = " << ea_4dof_status << ", ref_T_curr_optvar = " << ref_T_curr_optvar << endl;
 
-
+    cv::imshow( "debug_image_ealign", ealign.get_representation_image() );
     cv::waitKey(0);
+
+
     #endif
 
     #endif

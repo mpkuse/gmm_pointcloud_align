@@ -98,10 +98,13 @@ int main( int argc, char ** argv )
 
 
     // try point feature matching
+    MatrixXd gms_uv_a, gms_uv_b;
     MatrixXd uv_a, uv_b;
     ElapsedTime t_gms( "Gms Matcher");
     // StaticPointFeatureMatching::gms_point_feature_matches( left_image_a, left_image_b, uv_a, uv_b, 10000 );
-    StaticPointFeatureMatching::gms_point_feature_matches_scaled( left_image_a, left_image_b, uv_a, uv_b, .5, 10000 );
+    StaticPointFeatureMatching::gms_point_feature_matches_scaled( left_image_a, left_image_b, gms_uv_a, gms_uv_b, .5, 10000 );
+
+    StaticPointFeatureMatching::refine_and_sparsify_matches( left_image_a, left_image_b, gms_uv_a, gms_uv_b, uv_a, uv_b );
     cout << "uv_a:" << uv_a.cols() << "\t" << t_gms.toc() << endl;
 
     // depths at correspondences
@@ -131,10 +134,10 @@ int main( int argc, char ** argv )
         cv::Mat dst_matcher;
         string msg_str = "#matches="+to_string( uv_a.cols() )+" ";
         msg_str+= ";nvalids_a,nvalids_b,nvalids=(" + to_string(nvalids_a) + "," + to_string(nvalids_b) + "," + to_string(nvalids) + ")";
-        MiscUtils::plot_point_pair( left_image_a, uv_a,
-                                    left_image_b, uv_b,
+        MiscUtils::plot_point_pair( left_image_a, uv_a, 0,
+                                    left_image_b, uv_b, 0,
                                     dst_matcher,
-                                    #if 1 // make this to 1 to mark matches by spatial color codes (gms style). set this to 0 to mark the matches with lines
+                                    #if 0 // make this to 1 to mark matches by spatial color codes (gms style). set this to 0 to mark the matches with lines
                                     3, msg_str
                                     #else
                                     cv::Scalar( 0,0,255 ), cv::Scalar( 0,255,0 ), false, msg_str

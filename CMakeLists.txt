@@ -513,17 +513,17 @@ target_link_libraries( test_lite_edge_alignment
        ${OpenCV_LIBS}
      )
 
- # add_executable( test_lite_gms
- #  src/test_lite_gms.cpp
- #  ${KuseUtils}
- #  src/LocalBundle.cpp
- #  src/EdgeAlignment.cpp
- #  )
+add_executable( test_lite_gms
+  src/test_lite_gms.cpp
+  ${KuseUtils}
+  src/LocalBundle.cpp
+  src/EdgeAlignment.cpp
+  )
 
-# target_link_libraries( test_lite_gms
-#        ${catkin_LIBRARIES}
-#        ${OpenCV_LIBS}
-#      )
+ target_link_libraries( test_lite_gms
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+      )
 
 
 ## Rename C++ executable without prefix
