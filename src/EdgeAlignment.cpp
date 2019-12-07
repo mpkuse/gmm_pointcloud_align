@@ -128,7 +128,11 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     {
         // ceres::CostFunction * cost_function = EAResidue::Create( K, a_X.col(i), interpolated_imb_disTrans);
 
-        ceres::CostFunction * cost_function = EAResidue::Create( fx,fy,cx,cy, cX(0,i),cX(1,i),cX(2,i), interpolated_imb_disTrans);
+        ceres::CostFunction * cost_function = EAResidue::Create(
+            fx,fy,cx,cy,
+            // cX(0,i),cX(1,i),cX(2,i),
+            cX.col(i),
+            interpolated_imb_disTrans);
         problem.AddResidualBlock( cost_function, robust_loss, ref_quat_curr, ref_t_curr );
 
         // note that this point was used for residue computation
@@ -145,13 +149,15 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
     // Run
     ceres::Solver::Options options;
     options.minimizer_progress_to_stdout = false;
+    // options.minimizer_progress_to_stdout = true;
+
 
     ElapsedTime t_easolver( "EAResidue Solver");
     __EdgeAlignment__solve_debug(options.minimizer_progress_to_stdout = false; );
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
     ceres::Solve( options, &problem, &summary );
-    __EdgeAlignment__solve_debug( std::cout << summary.FullReport() << "\n"; )
+    // std::cout << summary.FullReport() << endl;;
 
     __EdgeAlignment__solve_profiling( std::cout << summary.BriefReport() << endl;
     cout << TermColor::uGREEN() << t_easolver.toc() << TermColor::RESET() << endl; )
@@ -346,6 +352,7 @@ bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
     //--set opt variables to values
     //      i) yaw, tx, ty, tz from initial guess; ii) pitch and roll from vio
     Matrix4d initial_guess____refimu_T_currimu =  imu_T_cam * initial_guess____ref_T_curr * imu_T_cam.inverse();
+    Matrix4d vio_ref_T_curr =  vio_w_T_ref.inverse() * vio_w_T_curr;
     Matrix4d vio_refimu_T_currimu = imu_T_cam * vio_w_T_ref.inverse() * vio_w_T_curr * imu_T_cam.inverse();
 
     {
@@ -449,6 +456,7 @@ bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
         ceres::CostFunction * cost_function = EA4DOFResidue::Create(
             fx,fy,cx,cy,
             cX(0,i),cX(1,i),cX(2,i),
+            // cX.col(i),
             interpolated_imb_disTrans,
             refimu_ypr_currimu[1], refimu_ypr_currimu[2],
             imu_T_cam, 1.0
@@ -529,6 +537,17 @@ bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
         MatrixXd ref_uv = reproject( cX, initial_guess____ref_T_curr );
         cv::Mat dst_2;
         MiscUtils::plot_point_sets( im_ref, ref_uv, dst_2, cv::Scalar(0,0,255), false, "" );
+
+
+
+        // reproject in blue using the odometry
+        MatrixXd ref_uv_using_odom = reproject( cX, vio_ref_T_curr );
+        MiscUtils::plot_point_sets( dst_2, ref_uv_using_odom, cv::Scalar(255,0,0), false, "" );
+        MiscUtils::append_status_image( dst_2, "in blue, reproject cX using vio_ref_T_curr", 1.0);
+
+
+
+
         string initial_pose_str = PoseManipUtils::prettyprintMatrix4d(initial_guess____ref_T_curr);
         std::replace( initial_pose_str.begin(), initial_pose_str.end(), ':', ';');
 
@@ -536,6 +555,10 @@ bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
         std::replace( initial_pose_str_imuframe.begin(), initial_pose_str_imuframe.end(), ':', ';');
 
         MiscUtils::append_status_image( dst_2, "^^^im_ref;reprojecting 3d pts of im_curr on im_ref;   using initial guess of rel-pose;;initial_guess____ref_T_curr="+initial_pose_str+";;initial_guess____refimu_T_currimu="+initial_pose_str_imuframe, 1.0 );
+
+
+
+
         cv::Mat dst_2_resized;
         cv::resize(dst_2, dst_2_resized, cv::Size(), 0.5, 0.5 );
 

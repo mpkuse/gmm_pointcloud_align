@@ -119,6 +119,7 @@ private:
 
 class EAResidue {
 public:
+    /*
     EAResidue(
         const double fx, const double fy, const double cx, const double cy,
         const Eigen::Vector4d& __a_X,
@@ -129,13 +130,19 @@ public:
         // cout << "EAResidue.a_X: "<< a_X << endl;
         // cout << "fx=" << fx << "fy=" << fy << "cx=" << cx << "cy=" << cy << endl;
 
-    }
+    }*/
 
     EAResidue(
-        const double fx, const double fy, const double cx, const double cy,
-        const double a_Xx, const double a_Xy, const double a_Xz,
+        const double& fx, const double& fy, const double& cx, const double& cy,
+        // const double a_Xx, const double a_Xy, const double a_Xz,
+        // const Eigen::Vector4d& __a_X,
+        const Eigen::Ref<const VectorXd>& __a_X,
         const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& __interpolated_a
-    ): fx(fx), fy(fy), cx(cx), cy(cy),   a_Xx(a_Xx),a_Xy(a_Xy),a_Xz(a_Xz), interp_a(__interpolated_a)
+    ):
+        fx(fx), fy(fy), cx(cx), cy(cy),
+        // a_Xx(a_Xx),a_Xy(a_Xy),a_Xz(a_Xz),
+        a_X(__a_X),
+        interp_a(__interpolated_a)
     {}
 
     template <typename T>
@@ -155,35 +162,37 @@ public:
         // transform a_X
         Eigen::Matrix<T,4,1> b_X;
         Eigen::Matrix<T,4,1> templaye_a_X;
-        // templaye_a_X << T(a_X(0)),T(a_X(1)),T(a_X(2)),T(1.0);
-        // cout << "{{{{{{{{}}}}}}}}" << a_X << endl;
-        // templaye_a_X(0) = T(a_X(0));
-        // templaye_a_X(1) = T(a_X(1));
-        // templaye_a_X(2) = T(2.0); //T(a_X(2));
-        // templaye_a_X(3) = T(a_X(3));
-
         // cout << "{{{{{{{{}}}}}}}}" << a_Xx << ","<< a_Xy << ","<< a_Xz << "," << endl;
-        templaye_a_X(0) = T(a_Xx);
-        templaye_a_X(1) = T(a_Xy);
-        templaye_a_X(2) = T(a_Xz);
-        templaye_a_X(3) = T(1.0);
+        // templaye_a_X(0) = T(a_Xx);
+        // templaye_a_X(1) = T(a_Xy);
+        // templaye_a_X(2) = T(a_Xz);
+        // templaye_a_X(3) = T(1.0);
+        templaye_a_X = a_X.cast<T>();
         b_X = b_T_a *templaye_a_X;
 
 
         // Perspective-Projection and scaling with K.
-        if( b_X(2) < T(0.001) && b_X(2) > T(-0.001) )
-            return false;
-        // if( b_X(2) < T(0.0) )
-            // return false;
+        // if( b_X(2) < T(0.001) && b_X(2) > T(-0.001) ) {
+        //     residue[0] = T(1.0);
+        //     return true;
+        // }
+        // if( b_X(2) < T(0.0) ) {
+        //     residue[0] = T(1.0);
+        //     return true;
+        // }
+
         T _u = T(fx) * b_X(0)/b_X(2) + T(cx);
         T _v = T(fy) * b_X(1)/b_X(2) + T(cy);
 
-        // if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) )
-            // return false;
+        // NEED TO DISCUSS THIS ISSUE WITH Sameer Agarwal (dev of ceres-solver Google)
+        // if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) ) {
+        //     residue[0] = T(.1);
+        //     return true;
+        // }
 
         interp_a.Evaluate( _u, _v, &residue[0] );  //original
 
-        #if 1
+        #if 0
         // switch constraint - if u enable this besure to also use `<EAResidue,2,4,3>` instead of <EAResidue,1,4,3> om create()
         T lambda = T(.5);
         T delta = residue[0] * residue[0];
@@ -197,25 +206,30 @@ public:
     }
 
     static ceres::CostFunction* Create(
-        const double fx, const double fy, const double cx, const double cy,
+        const double& fx, const double& fy, const double& cx, const double& cy,
         //const Eigen::Vector4d __a_X,
-        //const Eigen::Ref<const VectorXd>& __a_X,
-        const double a_Xx, const double a_Xy, const double a_Xz,
+        const Eigen::Ref<const VectorXd>& __a_X,
+        // const double a_Xx, const double a_Xy, const double a_Xz,
         const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& __interpolated_a  )
     {
-        return( new ceres::AutoDiffCostFunction<EAResidue,2,4,3>
+        return( new ceres::AutoDiffCostFunction<EAResidue,1,4,3>
             (
-                new EAResidue( fx, fy, cx, cy, a_Xx,a_Xy,a_Xz,__interpolated_a)
+                // new EAResidue( fx, fy, cx, cy, a_Xx,a_Xy,a_Xz,__interpolated_a)
+                new EAResidue( fx, fy, cx, cy,
+                    // a_Xx,a_Xy,a_Xz,
+                    __a_X,
+                    __interpolated_a)
             )
             );
     }
 
 private:
-    const Eigen::Vector4d a_X; // a_X
-    const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>> interp_a; //
+    const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& interp_a; //
     // const Eigen::Matrix3d& K;
-    double fx, fy, cx, cy;
-    double a_Xx, a_Xy, a_Xz;
+    const double& fx, fy, cx, cy;
+    // double a_Xx, a_Xy, a_Xz;
+    // const Eigen::Vector4d a_X; // a_X
+    const Eigen::Ref<const VectorXd>& a_X;
 
 };
 
@@ -304,16 +318,17 @@ class EA4DOFResidue
 {
 public:
     EA4DOFResidue(
-        const double fx, const double fy, const double cx, const double cy, //<--- Camera params
+        const double& fx, const double& fy, const double& cx, const double& cy, //<--- Camera params
         const double _Xx, const double _Xy, const double _Xz, //<--- 3d pts from curr in curr's ref
         const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& __interpolated_a,
-        const double _refimu_pitch_currimu, const double _refimu_roll_currimu,
-        const Matrix4d __imu_T_cam, double ___weight
+        const double& _refimu_pitch_currimu, const double& _refimu_roll_currimu,
+        const Matrix4d& __imu_T_cam, double ___weight
     ): fx(fx), fy(fy), cx(cx), cy(cy),
        c_Xx(_Xx),c_Xy(_Xy),c_Xz(_Xz),
        interp_a(__interpolated_a),
        refimu_pitch_currimu(_refimu_pitch_currimu ), refimu_roll_currimu(_refimu_roll_currimu),
-       imu_T_cam(__imu_T_cam), weight( ___weight )
+       imu_T_cam(__imu_T_cam), imu_T_cam_inverse( __imu_T_cam.inverse() ),
+       weight( ___weight )
     {}
 
 
@@ -331,7 +346,8 @@ public:
 
         // get ref_T_curr <-- imu_T_cam.inv * refimu_T_currimu * imu_T_cam
         Eigen::Matrix<T,4,4> ref_T_curr;
-        ref_T_curr = imu_T_cam.inverse().cast<T>() * refimu_T_currimu * imu_T_cam.cast<T>();
+        // ref_T_curr = imu_T_cam.inverse().cast<T>() * refimu_T_currimu * imu_T_cam.cast<T>();
+        ref_T_curr = imu_T_cam_inverse.cast<T>() * refimu_T_currimu * imu_T_cam.cast<T>();
 
         // transform cX
         Eigen::Matrix<T,4,1> c_X, ref_X;
@@ -347,8 +363,10 @@ public:
         T _u = T(fx) * ref_X(0)/ref_X(2) + T(cx);
         T _v = T(fy) * ref_X(1)/ref_X(2) + T(cy);
 
-        // if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) )
-            // return false;
+        if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) ) {
+            residue[0] = T(0.);
+            return true;
+        }
 
         interp_a.Evaluate( _u, _v, &residue[0] );  //original
 
@@ -358,13 +376,13 @@ public:
     }
 
     static ceres::CostFunction* Create(
-        const double fx, const double fy, const double cx, const double cy,
+        const double& fx, const double& fy, const double& cx, const double& cy,
         //const Eigen::Vector4d __a_X,
-        //const Eigen::Ref<const VectorXd>& __a_X,
         const double a_Xx, const double a_Xy, const double a_Xz,
+        //const Eigen::Ref<const VectorXd>& __a_X,
         const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& __interpolated_a ,
-        const double _refimu_pitch_currimu, const double _refimu_roll_currimu,
-        const Matrix4d imu_T_cam, double weight )
+        const double& _refimu_pitch_currimu, const double& _refimu_roll_currimu,
+        const Matrix4d& imu_T_cam, const double weight )
     {
         return( new ceres::AutoDiffCostFunction<EA4DOFResidue,1,1,3>
             (
@@ -377,14 +395,15 @@ public:
 
 
     private:
-        const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>> interp_a; //
+        const ceres::BiCubicInterpolator<ceres::Grid2D<double,1>>& interp_a; //
         // const Eigen::Matrix3d& K;
-        const double fx, fy, cx, cy;
+        const double& fx, fy, cx, cy;
         const double c_Xx, c_Xy, c_Xz;
         const double weight;
 
-        const Matrix4d imu_T_cam;
-        const double refimu_pitch_currimu, refimu_roll_currimu;
+        const Matrix4d& imu_T_cam;
+        const Matrix4d& imu_T_cam_inverse;
+        const double& refimu_pitch_currimu, refimu_roll_currimu;
 
 
 
