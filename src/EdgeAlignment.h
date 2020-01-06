@@ -40,17 +40,40 @@ using namespace Eigen;
 class EdgeAlignment
 {
 public:
-    EdgeAlignment(const camodocal::CameraPtr _cam, const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr);
+    EdgeAlignment(const camodocal::CameraPtr _cam,
+        const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr,
+        const int n_use_edge_pts = 1000 );
 
     bool solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d& optimized__ref_T_curr );
 
     // Casts the edge alignment problem in opt variables imu_yaw, imu_tx, imu_ty, imu_tz.
-    //      takes as input ref_T_curr (for the cameras) and the imu_T_cam
-    //          gives the new ref_T_curr for the camera
-    //      vio_w_T_a, vio_w_T_b: are the pose of cameras as given out by the vio system. These are used to give pitch and rolls.
+    // Params:
+    //      initial_guess____ref_T_curr: takes as input (initial guess) ref_T_curr (for the cameras)
+    //      imu_T_cam                  : pose of camera as observed by imu frame (usually you get this from VINS system)
+    //      vio_w_T_a, vio_w_T_b       : They are the pose of cameras as given out by the vio system.
+    //                                   These are used to get initial estimates of pitch and rolls.
+    //      optimized__ref_T_curr [out]: relative poses of curr in ref frame. These are camera poses
+    //
     bool solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
         const Matrix4d& imu_T_cam,const Matrix4d& vio_w_T_ref, const Matrix4d& vio_w_T_curr,
         Matrix4d& optimized__ref_T_curr  );
+
+
+
+#if 0
+    // Casts the edge alignment problem in opt variables imu_yaw, imu_tx, imu_ty, imu_tz.
+    // Params:
+    //      initial_guess____ref_T_curr: takes as input (initial guess) ref_T_curr (for the cameras)
+    //      imu_T_cam                  : pose of camera as observed by imu frame (usually you get this from VINS system)
+    //      vio_w_T_a, vio_w_T_b       : They are the pose of cameras as given out by the vio system.
+    //                                   These are used to get initial estimates of pitch and rolls.
+    //      optimized__ref_T_curr [out]: relative poses of curr in ref frame. These are camera poses
+    //
+    bool solve4DOF_with_point_feature_matching( const Matrix4d& initial_guess____ref_T_curr,
+        const MatrixXd& uv_ref, const MatrixXd _3dpts_curr,
+        const Matrix4d& imu_T_cam,const Matrix4d& vio_w_T_ref, const Matrix4d& vio_w_T_curr,
+        Matrix4d& optimized__ref_T_curr  );
+        #endif
 
     void set_make_representation_image()   {  make_representation_image = true;  }
     void unset_make_representation_image() {  make_representation_image = false; }
@@ -78,6 +101,8 @@ private:
     const camodocal::CameraPtr cam ;
     const cv::Mat im_ref;               // distance transform will be made with edgemap of this image
     const cv::Mat im_curr, depth_curr; //3d points will be made from curr
+
+    const int n_use_edge_pts;
 
     // Representation image
     bool make_representation_image = false;

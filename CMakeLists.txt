@@ -496,9 +496,6 @@ add_executable( test_monocular_depth
                       ${OpenCV_LIBS}
                     )
 
-endif(COMPILE_UNIT_TEST)
-unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
-
 
 
 add_executable( test_lite_edge_alignment
@@ -524,6 +521,22 @@ add_executable( test_lite_gms
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
       )
+
+endif(COMPILE_UNIT_TEST)
+unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
+
+
+add_executable( test_compare_edgealign_to_odomGT
+  src/test_compare_edgealign_to_odomGT.cpp
+  ${KuseUtils}
+  src/LocalBundle.cpp
+  src/EdgeAlignment.cpp
+  )
+
+target_link_libraries( test_compare_edgealign_to_odomGT
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+     )
 
 
 ## Rename C++ executable without prefix

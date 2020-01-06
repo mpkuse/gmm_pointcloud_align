@@ -311,6 +311,34 @@ bool retrive_image_data_from_json_datanode( json data_node,
 
     }
 
+    const Matrix4d retrive_pose_from_json_datanode( json data_node  )
+    {
+        _retrive_info_( cout << TermColor::GREEN() << "[retrive_pose_from_json_datanode]t=" << data_node["stampNSec"] << TermColor::RESET() << endl; )
+
+            int64_t t_sec = data_node["stampNSec"];
+            ros::Time stamp = ros::Time().fromNSec( t_sec );
+
+
+            // if wTc and image do not exist then return
+            if( data_node["isPoseAvailable"] == false || data_node["isKeyFrame"] == false ) {
+                cout << "\t[retrive_pose_from_json_datanode]no pose or image data...return false\n";
+                throw 3;
+            }
+
+            // odom pose
+            // Matrix4d w_T_c;
+            // string _tmp = data_node["w_T_c"];
+            Matrix4d w_T_c;
+            bool status = RawFileIO::read_eigen_matrix4d_fromjson(  data_node["w_T_c"], w_T_c  );
+            if( status == false ) {
+                cout <<__FILE__ << ":" << __LINE__ <<  ": status was false\n";
+                throw 4;
+            }
+
+            return w_T_c;
+
+    }
+
     bool retrive_data_from_json_datanode( json data_node,
         ros::Time& stamp, Matrix4d& w_T_c,
         cv::Mat& left_image, cv::Mat& right_image,

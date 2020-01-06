@@ -1,7 +1,10 @@
 #include "EdgeAlignment.h"
 
-EdgeAlignment::EdgeAlignment(const camodocal::CameraPtr _cam, const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr):
-        cam(_cam), im_ref(_im_ref), im_curr(_im_curr),  depth_curr( _depth_curr)
+EdgeAlignment::EdgeAlignment(const camodocal::CameraPtr _cam,
+    const cv::Mat _im_ref, const cv::Mat _im_curr, cv::Mat _depth_curr,
+    const int _n_use_edge_pts):
+        cam(_cam), im_ref(_im_ref), im_curr(_im_curr),  depth_curr( _depth_curr),
+        n_use_edge_pts( _n_use_edge_pts )
 {
     #if 0
     cout << "~~~~\n~~~~[EdgeAlignment::EdgeAlignment]~~~~\n~~~~\n";
@@ -312,8 +315,8 @@ bool EdgeAlignment::solve( const Matrix4d& initial_guess____ref_T_curr, Matrix4d
 
 }
 
-#define __EdgeAlignment__solve4DOF( msg ) msg;
-// #define __EdgeAlignment__solve4DOF( msg ) ;
+// #define __EdgeAlignment__solve4DOF( msg ) msg;
+#define __EdgeAlignment__solve4DOF( msg ) ;
 bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
     const Matrix4d& imu_T_cam, const Matrix4d& vio_w_T_ref, const Matrix4d& vio_w_T_curr,
     Matrix4d& optimized__ref_T_curr  )
@@ -541,9 +544,9 @@ bool EdgeAlignment::solve4DOF( const Matrix4d& initial_guess____ref_T_curr,
 
 
         // reproject in blue using the odometry
-        MatrixXd ref_uv_using_odom = reproject( cX, vio_ref_T_curr );
-        MiscUtils::plot_point_sets( dst_2, ref_uv_using_odom, cv::Scalar(255,0,0), false, "" );
-        MiscUtils::append_status_image( dst_2, "in blue, reproject cX using vio_ref_T_curr", 1.0);
+        // MatrixXd ref_uv_using_odom = reproject( cX, vio_ref_T_curr );
+        // MiscUtils::plot_point_sets( dst_2, ref_uv_using_odom, cv::Scalar(255,0,0), false, "" );
+        // MiscUtils::append_status_image( dst_2, "in blue, reproject cX using vio_ref_T_curr", 1.0);
 
 
 
@@ -901,7 +904,9 @@ MatrixXd EdgeAlignment::get_cX_at_edge_pts( const cv::Mat im, const cv::Mat dept
 
 
     // --- randomly drop, only retain 1500
-    const int n_retain = 1000;
+    const int n_retain = n_use_edge_pts ; // 600;
+    cout << TermColor::iWHITE() << ">>>>> n_retain = " << n_retain << endl << TermColor::RESET();
+
     auto rng = std::default_random_engine {};
     std::shuffle(std::begin(vec_of_pt), std::end(vec_of_pt), rng);
 

@@ -54,7 +54,7 @@ int main( int argc, char ** argv )
     cout << "-------------------------------------------------------\n" << TermColor::RESET();
 
     //   Load camodocal
-    #if 0
+    #if 1
     // load camodocam camera
     camodocal::CameraPtr cam = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(CAM_PREFIX+"/camera.yaml");
     if( !cam ) { cout << "Cannot load camera\n"; exit(2); }
@@ -64,8 +64,10 @@ int main( int argc, char ** argv )
 
 
     string fname_a = SAVE_LOCALBUNDLE_REPROJECTION_DEBUG_IMAGES_PREFIX+"../live_system/hyp_" + to_string(hyp_idx) + "_left_image_a" + ".jpg";
+    // string fname_a = SAVE_LOCALBUNDLE_REPROJECTION_DEBUG_IMAGES_PREFIX+"/hyp_" + to_string(hyp_idx) + "_ea_im_ref" + ".jpg";
     cv::Mat left_image_a = cv::imread( fname_a, 0 );
     string fname_b = SAVE_LOCALBUNDLE_REPROJECTION_DEBUG_IMAGES_PREFIX+"../live_system/hyp_" + to_string(hyp_idx) + "_left_image_b" + ".jpg";
+    // string fname_b = SAVE_LOCALBUNDLE_REPROJECTION_DEBUG_IMAGES_PREFIX+"/hyp_" + to_string(hyp_idx) + "_ea_im_curr" + ".jpg";
     cv::Mat left_image_b = cv::imread( fname_b, 0 );
     assert( !left_image_a.empty() && !left_image_a.empty() );
 
@@ -79,7 +81,7 @@ int main( int argc, char ** argv )
     storage["depth_b"] >> depth_b;
     storage.release();
 
-    cout << "Files Read:";
+    cout << "Files Read:\n";
     cout << "\t" << fname_a << endl;
     cout << "\t" << fname_b << endl;
     cout << "\t" << fname_storage << endl;
@@ -104,20 +106,27 @@ int main( int argc, char ** argv )
     // StaticPointFeatureMatching::gms_point_feature_matches( left_image_a, left_image_b, uv_a, uv_b, 10000 );
     StaticPointFeatureMatching::gms_point_feature_matches_scaled( left_image_a, left_image_b, gms_uv_a, gms_uv_b, .5, 10000 );
 
+    #if 1 //make this to 1 to disable sparsify.
+    uv_a = gms_uv_a;
+    uv_b = gms_uv_b;
+    cout << "uv_a=" << uv_a.cols() << "\t" << t_gms.toc() << endl;
+    #else
     StaticPointFeatureMatching::refine_and_sparsify_matches( left_image_a, left_image_b, gms_uv_a, gms_uv_b, uv_a, uv_b );
-    cout << "uv_a:" << uv_a.cols() << "\t" << t_gms.toc() << endl;
+    cout << "gms_uv_a=" << gms_uv_a.cols() << "\tuv_a=" << uv_a.cols() << "\t" << t_gms.toc() << endl;
+    #endif
 
+    #if 1
     // depths at correspondences
     VectorXd d_a = StaticPointFeatureMatching::depth_at_image_coordinates( uv_a, depth_a );
     VectorXd d_b = StaticPointFeatureMatching::depth_at_image_coordinates( uv_b, depth_b );
 
     // //--- normalized image cords
-    // MatrixXd normed_uv_a = StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( dataManager->getAbstractCameraRef(), uv_a );
-    // MatrixXd normed_uv_b = StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( dataManager->getAbstractCameraRef(), uv_b );
+    MatrixXd normed_uv_a = StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( cam, uv_a );
+    MatrixXd normed_uv_b = StaticPointFeatureMatching::image_coordinates_to_normalized_image_coordinates( cam, uv_b );
     //
     // // 3d points
-    // MatrixXd aX = StaticPointFeatureMatching::normalized_image_coordinates_and_depth_to_3dpoints( normed_uv_a, d_a, true );
-    // MatrixXd bX = StaticPointFeatureMatching::normalized_image_coordinates_and_depth_to_3dpoints( normed_uv_b, d_b, true );
+    MatrixXd aX = StaticPointFeatureMatching::normalized_image_coordinates_and_depth_to_3dpoints( normed_uv_a, d_a, true );
+    MatrixXd bX = StaticPointFeatureMatching::normalized_image_coordinates_and_depth_to_3dpoints( normed_uv_b, d_b, true );
 
 
     double near = 0.5, far = 5.0;
@@ -127,7 +136,8 @@ int main( int argc, char ** argv )
     int nvalids_b = MiscUtils::total_true( valids_b );
     vector<bool> valids = MiscUtils::vector_of_bool_AND( valids_a, valids_b );
     int nvalids = MiscUtils::total_true( valids );
-
+    cout << "nvalids_a,nvalids_b,nvalids=(" + to_string(nvalids_a) + "," + to_string(nvalids_b) + "," + to_string(nvalids) + ")" << endl;
+    #endif
 
     bool PLOT = true;
     if( PLOT ) {
