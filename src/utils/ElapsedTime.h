@@ -14,7 +14,7 @@ public:
         this->begin = std::chrono::steady_clock::now();
     }
 
-    ElapsedTime( const string msg ) {
+    ElapsedTime( const std::string msg ) {
         // start timer
         this->begin = std::chrono::steady_clock::now();
         this->msg_string = msg;
@@ -26,7 +26,7 @@ public:
         this->begin = std::chrono::steady_clock::now();
     }
 
-    void tic( const string msg ) {
+    void tic( const std::string msg ) {
         // start timer
         this->begin = std::chrono::steady_clock::now();
         this->msg_string = msg;
@@ -49,16 +49,16 @@ public:
         return (int) std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
     }
 
-    string toc()
+    std::string toc()
     {
         auto ms = toc_milli();
-        return ":" + msg_string + ": ms=" + to_string(ms) + " ";
+        return ":" + msg_string + ": ms=" + std::to_string(ms) + " ";
     }
 
 
 private:
     std::chrono::steady_clock::time_point begin;
-    string msg_string = "";
+    std::string msg_string = "";
 
 };
 

@@ -388,14 +388,21 @@ public:
         T _u = T(fx) * ref_X(0)/ref_X(2) + T(cx);
         T _v = T(fy) * ref_X(1)/ref_X(2) + T(cy);
 
-        if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) ) {
-            residue[0] = T(0.);
-            return true;
-        }
+        // if( _u < T(0) || _u > T(640) || _v < T(0) || _v > T(480) ) {
+        //     residue[0] = T(0.);
+        //     return true;
+        // }
 
         interp_a.Evaluate( _u, _v, &residue[0] );  //original
 
-
+        #if 0
+        // switch constraint - if u enable this besure to also use `<EAResidue,2,4,3>` instead of <EAResidue,1,4,3> om create()
+        T lambda = T(0.3);
+        T delta = residue[0] * residue[0];
+        T s = lambda / ( T(1.0) + delta );
+        residue[0] *= s;
+        residue[1] = lambda * ( T(1.0) - s );
+        #endif
 
         return true;
     }

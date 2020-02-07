@@ -247,7 +247,7 @@ float StaticTheiaPoseCompute::PNP( const std::vector<Vector3d>& w_X, const std::
 #endif
 
 
-
+#if 0
 // #define __StaticCeresPoseCompute_PNP_(msg) msg;
 #define __StaticCeresPoseCompute_PNP_(msg) ;
 float StaticCeresPoseCompute::PNP( const std::vector<Vector3d>& w_X, const std::vector<Vector2d>& c_uv_normalized,
@@ -320,11 +320,11 @@ float StaticCeresPoseCompute::PNP( const std::vector<Vector3d>& w_X, const std::
     return 1.0;
 }
 
+#endif
 
 
 
-
-
+#if 0
 #define __StaticCeresPoseCompute_P3P_(msg) msg;
 // #define __StaticCeresPoseCompute_P3P_(msg) ;
 float StaticCeresPoseCompute::P3P_ICP( const std::vector<Vector3d>& a_X, const std::vector<Vector3d>& b_X,
@@ -396,3 +396,4 @@ float StaticCeresPoseCompute::P3P_ICP( const std::vector<Vector3d>& a_X, const s
 
     return 1.0;
 }
+#endif 

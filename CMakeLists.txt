@@ -21,8 +21,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 
-#find_package(Theia REQUIRED)
-#include_directories(${THEIA_INCLUDE_DIRS})
+find_package(Theia REQUIRED)
+include_directories(${THEIA_INCLUDE_DIRS})
 
 
 
@@ -522,8 +522,6 @@ add_executable( test_lite_gms
         ${OpenCV_LIBS}
       )
 
-endif(COMPILE_UNIT_TEST)
-unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
 
 
 add_executable( test_compare_edgealign_to_odomGT
@@ -536,6 +534,27 @@ add_executable( test_compare_edgealign_to_odomGT
 target_link_libraries( test_compare_edgealign_to_odomGT
        ${catkin_LIBRARIES}
        ${OpenCV_LIBS}
+     )
+
+
+ endif(COMPILE_UNIT_TEST)
+ unset(COMPILE_UNIT_TEST CACHE) # <---- this is the important!!
+
+
+
+
+add_executable( test_quantitative_comparison_with_pnp_vs_ea
+  src/test_quantitative_comparison_with_pnp_vs_ea.cpp
+  ${KuseUtils}
+  src/LocalBundle.cpp
+  src/EdgeAlignment.cpp
+  src/DlsPnpWithRansac.cpp
+  )
+
+target_link_libraries( test_quantitative_comparison_with_pnp_vs_ea
+       ${catkin_LIBRARIES}
+       ${OpenCV_LIBS}
+       ${THEIA_LIBRARIES}
      )
 
 

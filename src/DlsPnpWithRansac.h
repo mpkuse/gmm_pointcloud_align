@@ -13,11 +13,11 @@
 #include "utils/PoseManipUtils.h"
 
 #include <vector>
-
+#include <string>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-#include "PNPCeresCostFunctions.h"
+// #include "PNPCeresCostFunctions.h"
 
 using namespace Eigen;
 using namespace std;
